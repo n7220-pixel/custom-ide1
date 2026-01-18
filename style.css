@@ -1,0 +1,43 @@
+/*
+Copyright (c) 2026 n7220-pixel
+SPDX-License-Identifier: MIT
+
+This file contains every style related setting.
+Modify this file at your own risk.
+Make sure that the syntax is correct.
+If you break this file, copy settings from defaults/defaultStyle.css
+DO NOT DELETE THIS FILE.
+*/
+
+/*Main window background*/
+QMainWindow {
+    background-color: rgb(30, 30, 30);
+}
+
+/*Toolbar background*/
+QToolBar {
+    background-color: rgb(50, 50, 50);
+    border: none;
+}
+
+/*Toolbar buttons*/
+QToolButton {
+    color: rgb(255, 255, 255);
+    padding: 3px 6px;
+    border-radius: 10px;
+}
+
+/*Button appearence when hovered over*/
+QToolButton:hover {
+    background-color: rgb(64, 64, 64);
+    border-radius: 10px;
+}
+
+/*Text editor*/
+QTextEdit {
+    background-color: rgb(37, 37, 38);
+    color: rgb(212, 212, 212);
+    font-size: 12pt;
+    font-family: Consolas, "Courier New", monospace;
+    padding: 10px;
+}
