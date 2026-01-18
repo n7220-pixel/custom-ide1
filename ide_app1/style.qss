@@ -23,8 +23,8 @@ QToolButton {
     color: #cccccc;
     background-color: transparent;
     border: 1px solid transparent;
-    border-radius: 4px;
-    padding: 5px 10px;
+    border-radius: 13px;
+    padding: 3px 6px;
     font-family: "Inter", "Segoe UI", sans-serif; 
     font-size: 10pt;
 }
@@ -41,7 +41,7 @@ QToolButton:pressed {
 
 /* Main text area */
 QPlainTextEdit#codeEditor {
-    background-color: #1e1e1e;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #101010, stop:0.8 #101010,stop:1 #010d18);
     color: #d4d4d4;
     border: none;
     font-family: "Roboto Mono", "Consolas", monospace;
@@ -51,14 +51,14 @@ QPlainTextEdit#codeEditor {
 
 /* Line number sidebar */
 QWidget#lineNumberArea {
-    background-color: #1e1e1e; 
-    color: #858585;
+    background-color: rgba(30, 30, 30, 0.5);
+    color: #ABABAB;
     border-right: 1px solid #333333; 
 }
 
 /* Status bar */
 QStatusBar#mainStatusBar {
-    background-color: #007acc;
+    background-color: rgba(30, 30, 30, 0);
     color: #ffffff;
     font-family: "Inter";
     font-size: 9pt;

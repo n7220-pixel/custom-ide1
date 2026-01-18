@@ -2,9 +2,10 @@
 # SPDX-License-Identifier: MIT
 # See LICENSE.txt file for more information.
 # This is an early access build, expect bugs and incomplete features.
-# Version 1.2.0
 
 #Start of main.py
+
+VERSION = "1.2.0"
 
 print("APP STARTED AT", __import__('datetime').datetime.now().strftime("%H:%M:%S"))
 import sys
@@ -25,6 +26,48 @@ def get_resource_path(*args):
     """
     base_dir = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_dir, *args)
+
+
+def manage_desktop_file():
+    """Handles creation and version-based updating of the Linux .desktop file."""
+    if os.name != 'posix': 
+        return
+
+    is_root = os.geteuid() == 0
+    app_dir = "/usr/share/applications" if is_root else os.path.expanduser("~/.local/share/applications")
+    desktop_path = os.path.join(app_dir, "custom_ide.desktop")
+    
+    icon_path = get_resource_path("defaults", "mainAppIcon.png")
+    exec_path = f"{sys.executable} {os.path.abspath(__file__)}"
+    
+    desktop_content = f"""[Desktop Entry]
+Version={VERSION}
+Name=Custom IDE
+Comment=High Performance Python IDE
+Exec={exec_path}
+Icon={icon_path}
+Terminal=false
+Type=Application
+Categories=Development;IDE;
+StartupNotify=true
+"""
+
+    should_write = True
+    if os.path.exists(desktop_path):
+        with open(desktop_path, 'r') as f:
+            if f"Version={VERSION}" in f.read():
+                should_write = False
+
+    if should_write:
+        try:
+            os.makedirs(app_dir, exist_ok=True)
+            with open(desktop_path, 'w') as f:
+                f.write(desktop_content)
+            if not is_root:
+                os.chmod(desktop_path, 0o755)
+            print(f"DESKTOP FILE UPDATED TO VERSION {VERSION}")
+        except Exception as e:
+            print(f"FAILED TO WRITE DESKTOP FILE: {e}")
 
 
 # Custom Editor Widgets
@@ -157,7 +200,7 @@ class MainWindow(QMainWindow):
         line = cursor.blockNumber() + 1
         col = cursor.columnNumber() + 1
         total = self.editor.blockCount()
-        self.status_bar.showMessage(f" Line: {line}  |  Col: {col}  |  Total: {total}")
+        self.status_bar.showMessage(f" Line: {line}  |  Col: {col}  |  Total lines: {total}")
 
     def load_resources(self):
         # 1. Load Icon
@@ -198,6 +241,7 @@ class MainWindow(QMainWindow):
             QFontDatabase.addApplicationFont(path)
 
 if __name__ == "__main__":
+    manage_desktop_file() # Check/Update version in desktop entry
     app = QApplication(sys.argv)
     app.aboutToQuit.connect(lambda: print("APP CLOSED AT", __import__('datetime').datetime.now().strftime("%H:%M:%S")))
     window = MainWindow()
