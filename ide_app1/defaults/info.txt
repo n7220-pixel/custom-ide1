@@ -1,0 +1,3 @@
+Everything in the defaults folder is not meant to be modified.
+The purpose of this is to be able to restore broken settings to their defaults.
+Do not delete, modify, or add items in "defaults" folder or anything inside of it.

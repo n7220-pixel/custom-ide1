@@ -1,0 +1,110 @@
+/*
+DO NOT MODIFY OR DELETE THIS FILE.
+If you break the style.qss file, copy setttings from here.
+These settings have been tested and are valid.
+This contains the original style settings.
+*/
+
+/* Global settings */
+QMainWindow {
+    background-color: #1e1e1e;
+}
+
+/* Toolbar */
+QToolBar#mainToolbar {
+    background-color: #252526;
+    border-bottom: 1px solid #333333;
+    padding: 5px;
+    spacing: 10px;
+}
+
+QToolButton {
+    color: #cccccc;
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 5px 10px;
+    font-family: "Inter", "Segoe UI", sans-serif; 
+    font-size: 10pt;
+}
+
+QToolButton:hover {
+    background-color: #3e3e42;
+    color: #ffffff;
+}
+
+QToolButton:pressed {
+    background-color: #007acc;
+    color: white;
+}
+
+/* Main text area */
+QPlainTextEdit#codeEditor {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border: none;
+    font-family: "Roboto Mono", "Consolas", monospace;
+    font-size: 11pt;
+    padding-left: 5px; 
+}
+
+/* Line number sidebar */
+QWidget#lineNumberArea {
+    background-color: #1e1e1e; 
+    color: #858585;
+    border-right: 1px solid #333333; 
+}
+
+/* Status bar */
+QStatusBar#mainStatusBar {
+    background-color: #007acc;
+    color: #ffffff;
+    font-family: "Inter";
+    font-size: 9pt;
+    border-top: 1px solid #333333;
+}
+
+QStatusBar::item {
+    border: none;
+}
+
+/* Scrollbars */
+QScrollBar:vertical, QScrollBar:horizontal {
+    border: none;
+    background: #1e1e1e;
+    margin: 0px;
+}
+
+QScrollBar:vertical {
+    width: 14px;
+}
+
+QScrollBar:horizontal {
+    height: 14px;
+}
+
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+    background: #424242;
+    border-radius: 0px;
+}
+
+QScrollBar::handle:vertical {
+    min-height: 20px;
+}
+
+QScrollBar::handle:horizontal {
+    min-width: 20px;
+}
+
+QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {
+    background: #4f4f4f;
+}
+
+QScrollBar::add-line, QScrollBar::sub-line {
+    width: 0px;
+    height: 0px;
+}
+
+QScrollBar::add-page, QScrollBar::sub-page {
+    background: none;
+}
