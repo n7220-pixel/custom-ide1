@@ -1,67 +1,45 @@
-/* Welcome to the styles.qss file!
-This contains appearance settings for the whole app.
-Visit https://doc.qt.io/qt-6/stylesheet-syntax.html if you do not understand qss.
-Modify at your own risk.
-If you want to restore this to default, copy settings from defaults/defaultStyle.qss
-Do not delete this file.
+/* Welcome to style.qss
+This file contains styles for every major component of the IDE.
+You can customize colors, fonts, and other visual aspects here.
+This can be modified while the app is running.
+If you break something, use defaults/defaultStyle.qss to restore.
 */
 
-/* Global settings */
+
+/* Main Window */
 QMainWindow {
-    background-color: #1e1e1e;
+    background: qlineargradient(
+        x1:0, y1:0, x2:0, y2:1,
+        stop:0 #101010,
+        stop:0.5 #101010,
+        stop:1 #010d18
+    );
 }
 
-/* Toolbar */
-QToolBar#mainToolbar {
-    background-color: #252526;
-    border-bottom: 1px solid #333333;
-    padding: 5px;
-    spacing: 10px;
-}
-
-QToolButton {
-    color: #cccccc;
-    background-color: transparent;
-    border: 1px solid transparent;
-    border-radius: 13px;
-    padding: 3px 6px;
-    font-family: "Inter", "Segoe UI", sans-serif; 
-    font-size: 10pt;
-}
-
-QToolButton:hover {
-    background-color: #3e3e42;
-    color: #ffffff;
-}
-
-QToolButton:pressed {
-    background-color: #007acc;
-    color: white;
-}
-
-/* Main text area */
+/* Editor */
 QPlainTextEdit#codeEditor {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #101010, stop:0.8 #101010,stop:1 #010d18);
+    background-color: rgba(30, 30, 30, 200);
     color: #d4d4d4;
     border: none;
-    font-family: "Roboto Mono", "Consolas", monospace;
+    font-family: "Roboto Mono", Consolas, monospace;
     font-size: 11pt;
-    padding-left: 5px; 
+    padding-left: 5px;
 }
 
-/* Line number sidebar */
+/* Line numbers */
 QWidget#lineNumberArea {
-    background-color: rgba(30, 30, 30, 0.5);
-    color: #ABABAB;
-    border-right: 1px solid #333333; 
+    background-color: rgba(30, 40, 50, 200);
+    color: #aaaaaa;
+    font-family: "Roboto Mono", Consolas, monospace;
+    border-right: 1px solid #333333;
 }
 
 /* Status bar */
 QStatusBar#mainStatusBar {
-    background-color: rgba(30, 30, 30, 0);
+    background-color: rgba(30, 30, 30, 200);
     color: #ffffff;
     font-family: "Inter";
-    font-size: 9pt;
+    font-size: 10pt;
     border-top: 1px solid #333333;
 }
 
@@ -69,43 +47,76 @@ QStatusBar::item {
     border: none;
 }
 
-/* Scrollbars */
-QScrollBar:vertical, QScrollBar:horizontal {
+/* Menu bar */
+QMenuBar {
+    background: qlineargradient(
+        x1:0, y1:0, x2:1, y2:0,
+        stop:0 #094771,
+        stop:0.4 #333333,
+        stop:1 #101010
+    );
+    color: #cccccc;
+    font-family: "Inter", "Segoe UI", sans-serif;
+    font-size: 10pt;
+    border-bottom: 1px solid #2e2e2e;
+}
+
+/* Menu buttons */
+QMenuBar::item {
+    background-color: transparent;
+    padding: 5px 10px;
+    border-radius: 7px;
+    color: #cccccc;
+}
+
+QMenuBar::item:selected {
+    background-color: #094771;
+    color: #ffffff;
+}
+
+QMenuBar::item:pressed {
+    background-color: #0a5a8f;
+}
+
+/* Menus */
+QMenu {
+    background-color: rgba(30, 40, 50, 230);
+    border: 1px solid #2e2e2e;
+    border-radius: 10px;
+    color: #cccccc;
+    font-family: "Inter", "Segoe UI", sans-serif;
+    font-size: 10pt;
+}
+
+QMenu::item {
+    padding: 6px 30px 6px 20px;
+    border-radius: 5px;
+}
+
+QMenu::item:selected {
+    background-color: #094771;
+    color: white;
+}
+
+/* File Explorer */
+QTreeView#fileExplorer {
+    background-color: rgba(30, 30, 30, 128);
+    color: #cccccc;
     border: none;
-    background: #1e1e1e;
-    margin: 0px;
+    border-right: 1px solid #333333;
+    font-size: 10pt;
 }
 
-QScrollBar:vertical {
-    width: 14px;
+QTreeView#fileExplorer::item:selected {
+    background-color: #37373d;
+    color: white;
 }
 
-QScrollBar:horizontal {
-    height: 14px;
+/* Splitter */
+QSplitter::handle {
+    background-color: #333333;
 }
 
-QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
-    background: #424242;
-    border-radius: 0px;
-}
-
-QScrollBar::handle:vertical {
-    min-height: 20px;
-}
-
-QScrollBar::handle:horizontal {
-    min-width: 20px;
-}
-
-QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {
-    background: #4f4f4f;
-}
-
-QScrollBar::add-line, QScrollBar::sub-line {
-    width: 0px;
-    height: 0px;
-}
-
-QScrollBar::add-page, QScrollBar::sub-page {
-    background: none;
+QSplitter::handle:horizontal {
+    width: 1px;
 }
