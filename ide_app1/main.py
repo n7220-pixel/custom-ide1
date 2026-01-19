@@ -1,5 +1,5 @@
 # Copyright (c) 2026 n7220-pixel
-# SPDX-License-Identifier: MIT
+# l
 # See LICENSE.txt file for more information.
 # This is an early access build, expect bugs and incomplete features.
 
