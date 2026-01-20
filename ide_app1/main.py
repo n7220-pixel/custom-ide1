@@ -1,168 +1,191 @@
 # Copyright (c) 2026 n7220-pixel
 # SPDX-License-Identifier: MIT
-# Version 1.6.2
+# See LICENSE.txt for more information.
 
-Version = "1.6.2"
+Version = "1.8.0"
 
-# ---------------- Imports ----------------
+# Imports
 import sys
 import os
 from pathlib import Path
 
-from PyQt6.QtCore import QSize, Qt, QRect, QRegularExpression, QFileSystemWatcher
+from PyQt6.QtCore import QSize, Qt, QRect, QRegularExpression, QFileSystemWatcher, QProcess
 from PyQt6.QtGui import (
     QFont, QPainter, QSyntaxHighlighter,
     QTextCharFormat, QColor, QFileSystemModel,
-    QFontDatabase, QIcon
+    QFontDatabase, QIcon, QTextCursor
 )
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QPlainTextEdit,
     QWidget, QStatusBar, QTreeView, QSplitter,
-    QFileDialog, QMessageBox
+    QFileDialog, QMessageBox, QVBoxLayout, QLineEdit
 )
 
-# ---------------- Syntax Highlighting ----------------
+# Syntax highlighting
+from languageSupport.syntax import create_highlighter
 
-class PythonSyntax(QSyntaxHighlighter):
-    def __init__(self, document):
-        super().__init__(document)
-
-        Keyword = QTextCharFormat()
-        Keyword.setForeground(QColor("#569cd6"))
-        Keyword.setFontWeight(QFont.Weight.Bold)
-
-        Function = QTextCharFormat()
-        Function.setForeground(QColor("#dcdcaa"))
-
-        String = QTextCharFormat()
-        String.setForeground(QColor("#ce9178"))
-
-        Comment = QTextCharFormat()
-        Comment.setForeground(QColor("#6a9955"))
-
-        Keywords = [
-            "False","None","True","and","as","assert","break","class",
-            "continue","def","del","elif","else","except","finally",
-            "for","from","global","if","import","in","is","lambda",
-            "nonlocal","not","or","pass","raise","return","try",
-            "while","with","yield"
-        ]
-
-        self.Rules = (
-            [(QRegularExpression(fr"\b{k}\b"), Keyword) for k in Keywords] + [
-                (QRegularExpression(r"\b[A-Za-z_][A-Za-z0-9_]*(?=\()"), Function),
-                (QRegularExpression(r"'[^']*'|\"[^\"]*\""), String),
-                (QRegularExpression(r"#.*"), Comment),
-            ]
-        )
-
-    def highlightBlock(self, text):
-        for Pattern, Format in self.Rules:
-            Iterator = Pattern.globalMatch(text)
-            while Iterator.hasNext():
-                Match = Iterator.next()
-                self.setFormat(
-                    Match.capturedStart(),
-                    Match.capturedLength(),
-                    Format
-                )
-
-# ---------------- Line Numbers ----------------
-
+# Line number area
 class LineNumberWidget(QWidget):
-    def __init__(self, editor):
-        super().__init__(editor)
+    def __init__(self, Editor):
+        super().__init__(Editor)
         self.setObjectName("lineNumberArea")
-        self.Editor = editor
+        self.Editor = Editor
 
     def sizeHint(self):
-        return QSize(self.Editor.lineNumberWidth(), 0)
+        return QSize(self.Editor.LineNumberWidth(), 0)
 
-    def paintEvent(self, event):
-        self.Editor.paintLineNumbers(event)
+    def paintEvent(self, Event):
+        self.Editor.PaintLineNumbers(Event)
 
-# ---------------- Code Editor ----------------
-
+# Code editor
 class CodeEditor(QPlainTextEdit):
     def __init__(self):
         super().__init__()
 
         self.setObjectName("codeEditor")
         self.LineNumbers = LineNumberWidget(self)
-        self.Highlighter = PythonSyntax(self.document())
+        self.Highlighter = None
+        self.Language = "Plain text"
+
+        TabSpaceAmount = " " * 11
 
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        self.setTabStopDistance(self.fontMetrics().horizontalAdvance(TabSpaceAmount))
 
-        self.blockCountChanged.connect(self.updateLineNumberWidth)
-        self.updateRequest.connect(self.updateLineNumbers)
+        self.blockCountChanged.connect(self.UpdateLineNumberWidth)
+        self.updateRequest.connect(self.UpdateLineNumbers)
 
-        self.updateLineNumberWidth(0)
+        self.UpdateLineNumberWidth(0)
 
-    def lineNumberWidth(self):
-        digits = len(str(max(1, self.blockCount())))
-        return 35 + self.fontMetrics().horizontalAdvance("9") * digits
+    def setLanguage(self, file_path):
+        if self.Highlighter:
+            self.Highlighter.setDocument(None)
 
-    def updateLineNumberWidth(self, _):
-        self.setViewportMargins(self.lineNumberWidth(), 0, 0, 0)
+        self.Highlighter, self.Language = create_highlighter(
+            self.document(),
+            file_path
+        )
 
-    def updateLineNumbers(self, rect, dy):
-        if dy:
-            self.LineNumbers.scroll(0, dy)
+    def LineNumberWidth(self):
+        Digits = len(str(max(1, self.blockCount())))
+        return 35 + self.fontMetrics().horizontalAdvance("9") * Digits
+
+    def UpdateLineNumberWidth(self, _):
+        self.setViewportMargins(self.LineNumberWidth(), 0, 0, 0)
+
+    def UpdateLineNumbers(self, Rect, Dy):
+        if Dy:
+            self.LineNumbers.scroll(0, Dy)
         else:
             self.LineNumbers.update(
-                0, rect.y(),
+                0, Rect.y(),
                 self.LineNumbers.width(),
-                rect.height()
+                Rect.height()
             )
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        cr = self.contentsRect()
+    def resizeEvent(self, Event):
+        super().resizeEvent(Event)
+        Cr = self.contentsRect()
         self.LineNumbers.setGeometry(
-            QRect(cr.left(), cr.top(),
-                  self.lineNumberWidth(), cr.height())
+            QRect(Cr.left(), Cr.top(),
+                  self.LineNumberWidth(), Cr.height())
         )
 
-    def paintLineNumbers(self, event):
-        painter = QPainter(self.LineNumbers)
-        painter.fillRect(
-            event.rect(),
+    def PaintLineNumbers(self, Event):
+        Painter = QPainter(self.LineNumbers)
+        Painter.fillRect(
+            Event.rect(),
             self.LineNumbers.palette().window()
         )
-        painter.setPen(
+        Painter.setPen(
             self.LineNumbers.palette().text().color()
         )
 
-        block = self.firstVisibleBlock()
-        number = block.blockNumber()
-        top = int(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
-        bottom = top + int(self.blockBoundingRect(block).height())
+        Block = self.firstVisibleBlock()
+        Number = Block.blockNumber()
+        Top = int(self.blockBoundingGeometry(Block).translated(self.contentOffset()).top())
+        Bottom = Top + int(self.blockBoundingRect(Block).height())
 
-        while block.isValid() and top <= event.rect().bottom():
-            if block.isVisible() and bottom >= event.rect().top():
-                painter.drawText(
+        while Block.isValid() and Top <= Event.rect().bottom():
+            if Block.isVisible() and Bottom >= Event.rect().top():
+                Painter.drawText(
                     0,
-                    top,
+                    Top,
                     self.LineNumbers.width() - 8,
                     self.fontMetrics().height(),
                     Qt.AlignmentFlag.AlignRight,
-                    str(number + 1)
+                    str(Number + 1)
                 )
-            block = block.next()
-            top = bottom
-            bottom = top + int(self.blockBoundingRect(block).height())
-            number += 1
+            Block = Block.next()
+            Top = Bottom
+            Bottom = Top + int(self.blockBoundingRect(Block).height())
+            Number += 1
 
-# ---------------- Main Window ----------------
+# OS Terminal widget
+class TerminalWidget(QWidget):
+    def __init__(self, Parent=None):
+        super().__init__(Parent)
+        self.setObjectName("terminalWidget")
 
+        self.Process = QProcess(self)
+        self.Process.readyReadStandardOutput.connect(self.HandleStdout)
+        self.Process.readyReadStandardError.connect(self.HandleStderr)
+
+        self.Layout = QVBoxLayout(self)
+        self.Layout.setContentsMargins(0, 0, 0, 0)
+        self.Layout.setSpacing(0)
+
+        self.OutputArea = QPlainTextEdit()
+        self.OutputArea.setObjectName("terminalOutput")
+        self.OutputArea.setReadOnly(True)
+
+        self.InputArea = QLineEdit()
+        self.InputArea.setObjectName("terminalInput")
+        self.InputArea.setPlaceholderText("Enter command...")
+        self.InputArea.returnPressed.connect(self.SendCommand)
+
+        self.Layout.addWidget(self.OutputArea)
+        self.Layout.addWidget(self.InputArea)
+
+        self.OutputArea.appendPlainText(f"Terminal Initialized in {os.getcwd()}\n")
+
+    def SendCommand(self):
+        Command = self.InputArea.text()
+        if not Command.strip():
+            return
+
+        self.OutputArea.appendPlainText(f"$ {Command}")
+        
+        # Determine shell based on OS
+        Shell = "cmd.exe" if os.name == "nt" else "/bin/bash"
+        Args = ["/c", Command] if os.name == "nt" else ["-c", Command]
+        
+        self.Process.start(Shell, Args)
+        self.InputArea.clear()
+
+    def HandleStdout(self):
+        Data = self.Process.readAllStandardOutput().data().decode()
+        self.OutputArea.appendPlainText(Data)
+        self.ScrollToBottom()
+
+    def HandleStderr(self):
+        Data = self.Process.readAllStandardError().data().decode()
+        self.OutputArea.appendPlainText(f"Error: {Data}")
+        self.ScrollToBottom()
+
+    def ScrollToBottom(self):
+        self.OutputArea.moveCursor(QTextCursor.MoveOperation.End)
+
+# Main window
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
         self.BasePath = Path(__file__).parent
         self.CurrentFile = None
+        self.CurrentEncoding = "UTF-8"
 
-        # Fonts
+        # Font setup
         QFontDatabase.addApplicationFont(
             str(self.BasePath / "defaults/mainFonts/Inter-VariableFont_opsz,wght.ttf")
         )
@@ -170,70 +193,84 @@ class MainWindow(QMainWindow):
             str(self.BasePath / "defaults/mainFonts/RobotoMono-VariableFont_wght.ttf")
         )
 
-        # Window
+        # Window settings
         self.setWindowTitle("Custom IDE")
-        self.setMinimumSize(400, 200)
-        self.setGeometry(100,100,1100,700)
+        self.setMinimumSize(600, 400)
+        self.setGeometry(100, 100, 1100, 800)
         self.setWindowIcon(
             QIcon(str(self.BasePath / "defaults/mainAppIcon.png"))
         )
 
-        self.buildUi()
-        self.loadStyles()
-        self.setupWatcher()
+        self.BuildUi()
+        self.LoadStyles()
+        self.SetupWatcher()
 
-    # -------- UI --------
-
-    def buildUi(self):
+    # Ui building
+    def BuildUi(self):
+        # Center editor
         self.Editor = CodeEditor()
-        self.Editor.cursorPositionChanged.connect(self.updateStatus)
+        self.Editor.cursorPositionChanged.connect(self.UpdateStatus)
 
+        # Status bar
         self.Status = QStatusBar()
         self.Status.setObjectName("mainStatusBar")
         self.setStatusBar(self.Status)
 
-        self.buildMenuBar()
+        self.BuildMenuBar()
 
-        # File model starts EMPTY
+        # File explorer
         self.Model = QFileSystemModel()
-        self.Model.setRootPath("")
+        self.Model.setRootPath(os.path.expanduser("~")) 
 
         self.Tree = QTreeView()
         self.Tree.setObjectName("fileExplorer")
         self.Tree.setModel(self.Model)
-        self.Tree.setRootIndex(self.Model.index(""))
         self.Tree.setHeaderHidden(True)
         self.Tree.setVisible(False)
 
-        for col in range(1, 4):
-            self.Tree.setColumnHidden(col, True)
+        for Col in range(1, 4):
+            self.Tree.setColumnHidden(Col, True)
 
-        self.Tree.doubleClicked.connect(self.openFromTree)
+        self.Tree.doubleClicked.connect(self.OpenFromTree)
 
-        Splitter = QSplitter(Qt.Orientation.Horizontal)
-        Splitter.addWidget(self.Tree)
-        Splitter.addWidget(self.Editor)
-        Splitter.setStretchFactor(1, 1)
-        Splitter.setSizes([250, 850])
+        # Terminal
+        self.Terminal = TerminalWidget()
 
-        self.setCentralWidget(Splitter)
-        self.updateStatus()
+        # Splitters
+        # Sidebar + Editor
+        self.HorizontalSplitter = QSplitter(Qt.Orientation.Horizontal)
+        self.HorizontalSplitter.addWidget(self.Tree)
+        self.HorizontalSplitter.addWidget(self.Editor)
+        self.HorizontalSplitter.setStretchFactor(1, 1)
+        self.HorizontalSplitter.setSizes([250, 850])
 
-    # -------- Menu Bar --------
+        # Top Section + Terminal
+        self.VerticalSplitter = QSplitter(Qt.Orientation.Vertical)
+        self.VerticalSplitter.addWidget(self.HorizontalSplitter)
+        self.VerticalSplitter.addWidget(self.Terminal)
+        self.VerticalSplitter.setStretchFactor(0, 1)
+        self.VerticalSplitter.setSizes([600, 200])
 
-    def buildMenuBar(self):
+        self.setCentralWidget(self.VerticalSplitter)
+        self.UpdateStatus()
+
+    # Menu bar
+    def BuildMenuBar(self):
         Bar = self.menuBar()
 
+        # File menu
         FileMenu = Bar.addMenu("File")
-        FileMenu.addAction("New", self.newFile)
-        FileMenu.addAction("Open File…", self.openFile)
-        FileMenu.addAction("Open Folder…", self.openFolder)
+        FileMenu.addAction("New", self.NewFile)
+        FileMenu.addAction("Open File…", self.OpenFile)
+        FileMenu.addAction("Open Folder…", self.OpenFolder)
+        FileMenu.addAction("Clear Explorer", self.ClearExplorer)
         FileMenu.addSeparator()
-        FileMenu.addAction("Save", self.saveFile)
-        FileMenu.addAction("Save As…", self.saveFileAs)
+        FileMenu.addAction("Save", self.SaveFile)
+        FileMenu.addAction("Save As…", self.SaveFileAs)
         FileMenu.addSeparator()
         FileMenu.addAction("Exit", self.close)
 
+        # Edit menu
         EditMenu = Bar.addMenu("Edit")
         EditMenu.addAction("Undo", self.Editor.undo)
         EditMenu.addAction("Redo", self.Editor.redo)
@@ -242,122 +279,167 @@ class MainWindow(QMainWindow):
         EditMenu.addAction("Copy", self.Editor.copy)
         EditMenu.addAction("Paste", self.Editor.paste)
 
+        # View menu
         ViewMenu = Bar.addMenu("View")
-        ViewMenu.addAction("Toggle Sidebar", self.toggleSidebar)
+        ViewMenu.addAction("Toggle Sidebar", self.ToggleSidebar)
         ViewMenu.addSeparator()
-        ViewMenu.addAction("Zoom In", self.zoomIn)
-        ViewMenu.addAction("Zoom Out", self.zoomOut)
-        ViewMenu.addAction("Reset Zoom", self.resetZoom)
+        ViewMenu.addAction("Zoom In", self.ZoomIn)
+        ViewMenu.addAction("Zoom Out", self.ZoomOut)
+        ViewMenu.addAction("Reset Zoom", self.ResetZoom)
 
+        # Tools menu
+        ToolsMenu = Bar.addMenu("Tools")
+        ToolsMenu.addAction("Settings", self.OpenSettings)
+        ToolsMenu.addAction("Terminal", self.OpenTerminal)
+        ToolsMenu.addAction("Style", self.OpenStyleOptions)
+
+        # Help menu
         HelpMenu = Bar.addMenu("Help")
-        HelpMenu.addAction(
-            "About",
-            lambda: QMessageBox.about(
-                self, "About", f"Custom IDE v{Version}"
-            )
-        )
+        HelpMenu.addAction("About", lambda: QMessageBox.about(self, "About", f"Custom IDE v{Version}"))
 
-    # -------- Styling --------
+    
 
-    def loadStyles(self):
-        path = self.BasePath / "style.qss"
-        if path.exists():
-            self.setStyleSheet(path.read_text(encoding="utf-8"))
+    # Styling
+    def LoadStyles(self):
+        StylePath = self.BasePath / "style.qss"
+        if StylePath.exists():
+            self.setStyleSheet(StylePath.read_text(encoding="utf-8"))
 
-    def setupWatcher(self):
+    def SetupWatcher(self):
         self.Watcher = QFileSystemWatcher()
-        path = self.BasePath / "style.qss"
-        if path.exists():
-            self.Watcher.addPath(str(path))
-            self.Watcher.fileChanged.connect(self.loadStyles)
+        StylePath = self.BasePath / "style.qss"
+        if StylePath.exists():
+            self.Watcher.addPath(str(StylePath))
+            self.Watcher.fileChanged.connect(self.LoadStyles)
 
-    # -------- File Ops --------
-
-    def newFile(self):
+    # File operations
+    def NewFile(self):
         self.Editor.clear()
         self.CurrentFile = None
         self.setWindowTitle("New File - Custom IDE")
 
-    def openFile(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Open File")
-        if path:
-            self.loadFile(path)
+    def OpenFile(self):
+        FilePath, _ = QFileDialog.getOpenFileName(self, "Open File")
+        if FilePath:
+            self.LoadFile(FilePath)
 
-    def openFolder(self):
-        folder = QFileDialog.getExistingDirectory(
-            self, "Open Folder", str(self.BasePath)
-        )
-        if not folder:
+    def OpenFolder(self):
+        Folder = QFileDialog.getExistingDirectory(self, "Open Folder", str(self.BasePath))
+        if not Folder:
             return
 
-        folder = Path(folder)
-        self.Model.setRootPath(str(folder))
-        self.Tree.setRootIndex(self.Model.index(str(folder)))
+        FolderObj = Path(Folder).resolve()
+        
+        # Standard IDE behavior: Set the selected folder as the root of the tree
+        self.Model.setRootPath(str(FolderObj))
+        self.Tree.setRootIndex(self.Model.index(str(FolderObj)))
+
         self.Tree.setVisible(True)
-        self.setWindowTitle(f"{folder.name} - Custom IDE")
+        self.setWindowTitle(f"{FolderObj.name} - Custom IDE")
 
-    def saveFile(self):
+    def ClearExplorer(self):
+        # Reset the model root and hide the tree view
+        self.Model.setRootPath("")
+        self.Tree.setRootIndex(self.Model.index(""))
+        self.Tree.setVisible(False)
+        self.Status.showMessage("Explorer Cleared", 2000)
+
+    def SaveFile(self):
         if not self.CurrentFile:
-            self.saveFileAs()
+            self.SaveFileAs()
             return
-
-        Path(self.CurrentFile).write_text(
-            self.Editor.toPlainText(), encoding="utf-8"
-        )
+        Path(self.CurrentFile).write_text(self.Editor.toPlainText(), encoding="utf-8")
         self.Status.showMessage("Saved", 2000)
 
-    def saveFileAs(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Save File As")
-        if path:
-            self.CurrentFile = path
-            self.saveFile()
-            self.setWindowTitle(f"{Path(path).name} - Custom IDE")
+    def SaveFileAs(self):
+        FilePath, _ = QFileDialog.getSaveFileName(self, "Save File As")
+        if FilePath:
+            self.CurrentFile = FilePath
+            self.SaveFile()
+            self.setWindowTitle(f"{Path(FilePath).name} - Custom IDE")
 
-    def loadFile(self, path):
+    def LoadFile(self, FilePath):
+        FileObj = Path(FilePath).resolve()
+
         self.Editor.setPlainText(
-            Path(path).read_text(encoding="utf-8")
+            FileObj.read_text(encoding="utf-8")
         )
-        self.CurrentFile = path
-        self.setWindowTitle(f"{Path(path).name} - Custom IDE")
 
-    def openFromTree(self, index):
-        path = self.Model.filePath(index)
-        if os.path.isfile(path):
-            self.loadFile(path)
+        self.CurrentFile = str(FileObj)
+        self.CurrentEncoding = "UTF-8"
+        self.Editor.setLanguage(str(FileObj))
+        self.UpdateStatus()
+        self.setWindowTitle(f"{FileObj.name} - Custom IDE")
 
-    # -------- View --------
+        # -------- FILE EXPLORER SYNC --------
+        CurrentRoot = self.Model.rootPath()
+        if not CurrentRoot or not self.CurrentFile.startswith(CurrentRoot):
+            Parent = str(FileObj.parent)
+            self.Model.setRootPath(Parent)
+            self.Tree.setRootIndex(self.Model.index(Parent))
+        
+        FileIndex = self.Model.index(str(FileObj))
+        self.Tree.setCurrentIndex(FileIndex)
+        self.Tree.scrollTo(FileIndex)
+        self.Tree.setVisible(True)
 
-    def toggleSidebar(self):
+
+    def OpenFromTree(self, Index):
+        FilePath = self.Model.filePath(Index)
+        if os.path.isfile(FilePath):
+            self.LoadFile(FilePath)
+
+    # View actions
+    def ToggleSidebar(self):
         self.Tree.setVisible(not self.Tree.isVisible())
 
-    def zoomIn(self):
-        f = self.Editor.font()
-        f.setPointSize(f.pointSize() + 1)
-        self.Editor.setFont(f)
+    def ZoomIn(self):
+        Font = self.Editor.font()
+        Font.setPointSize(Font.pointSize() + 1)
+        self.Editor.setFont(Font)
 
-    def zoomOut(self):
-        f = self.Editor.font()
-        f.setPointSize(max(6, f.pointSize() - 1))
-        self.Editor.setFont(f)
+    def ZoomOut(self):
+        Font = self.Editor.font()
+        Font.setPointSize(max(6, Font.pointSize() - 1))
+        self.Editor.setFont(Font)
 
-    def resetZoom(self):
-        f = self.Editor.font()
-        f.setPointSize(11)
-        self.Editor.setFont(f)
+    def ResetZoom(self):
+        Font = self.Editor.font()
+        Font.setPointSize(11)
+        self.Editor.setFont(Font)
 
-    def updateStatus(self):
-        c = self.Editor.textCursor()
+    def UpdateStatus(self):
+        Cursor = self.Editor.textCursor()
         self.Status.showMessage(
-            f"Line {c.blockNumber()+1} | "
-            f"Col {c.columnNumber()+1} | "
+            f"Line {Cursor.blockNumber()+1} | "
+            f"Col {Cursor.columnNumber()+1} | "
+            f"{self.Editor.Language} | "
+            f"{self.CurrentEncoding} | "
             f"Total {self.Editor.blockCount()}"
         )
 
-# ---------------- Entry ----------------
+    # Tool actions
+    def OpenSettings(self):
+        QMessageBox.information(self, "Settings", "Settings logic not yet implemented.")
 
+    def OpenTerminal(self):
+        Visible = self.Terminal.isVisible()
+        self.Terminal.setVisible(not Visible)
+        if not Visible:
+            self.Terminal.InputArea.setFocus()
+
+    def OpenStyleOptions(self):
+        StylePath = self.BasePath / "style.qss"
+        if StylePath.exists():
+            self.LoadFile(StylePath)
+            self.Status.showMessage("Opened Style Configuration", 2000)
+        else:
+            QMessageBox.warning(self, "Style", "style.qss file not found!")
+
+# Entry point
 if __name__ == "__main__":
     os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
-    app = QApplication(sys.argv)
-    win = MainWindow()
-    win.show()
-    sys.exit(app.exec())
+    App = QApplication(sys.argv)
+    Window = MainWindow()
+    Window.show()
+    sys.exit(App.exec())

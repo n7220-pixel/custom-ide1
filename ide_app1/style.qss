@@ -5,7 +5,6 @@ This can be modified while the app is running.
 If you break something, use defaults/defaultStyle.qss to restore.
 */
 
-
 /* Main Window */
 QMainWindow {
     background: qlineargradient(
@@ -112,6 +111,31 @@ QTreeView#fileExplorer::item:selected {
     color: white;
 }
 
+/* Terminal Panel */
+QWidget#terminalWidget {
+    background-color: #1e1e1e;
+    border-top: 1px solid #333333;
+}
+
+QPlainTextEdit#terminalOutput {
+    background-color: #1e1e1e;
+    color: #cccccc;
+    border: none;
+    font-family: "Roboto Mono", Consolas, monospace;
+    font-size: 10pt;
+    padding: 5px;
+}
+
+QLineEdit#terminalInput {
+    background-color: #252526;
+    color: #cccccc;
+    border: none;
+    border-top: 1px solid #333333;
+    padding: 5px;
+    font-family: "Roboto Mono", Consolas, monospace;
+    font-size: 10pt;
+}
+
 /* Splitter */
 QSplitter::handle {
     background-color: #333333;
@@ -119,4 +143,8 @@ QSplitter::handle {
 
 QSplitter::handle:horizontal {
     width: 1px;
+}
+
+QSplitter::handle:vertical {
+    height: 1px;
 }
