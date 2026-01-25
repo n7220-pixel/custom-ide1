@@ -2,27 +2,185 @@
 # SPDX-License-Identifier: MIT
 # See LICENSE.txt for more information.
 
-Version = "1.8.0"
-
 # Imports
-import sys
+import json
 import os
+import sys
 from pathlib import Path
+from typing import Optional
 
-from PyQt6.QtCore import QSize, Qt, QRect, QRegularExpression, QFileSystemWatcher, QProcess
-from PyQt6.QtGui import (
-    QFont, QPainter, QSyntaxHighlighter,
-    QTextCharFormat, QColor, QFileSystemModel,
-    QFontDatabase, QIcon, QTextCursor
-)
+from PyQt6.QtCore import QProcess, QRect, QSize, Qt
+from PyQt6.QtGui import QMouseEvent, QPainter, QTextCursor
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QPlainTextEdit,
-    QWidget, QStatusBar, QTreeView, QSplitter,
-    QFileDialog, QMessageBox, QVBoxLayout, QLineEdit
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QFormLayout,
+    QLabel,
+    QLineEdit,
+    QPlainTextEdit,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
 )
 
-# Syntax highlighting
+# Fix import path
 from languageSupport.syntax import create_highlighter
+
+Version = "2.0.0"
+
+
+# Clickable status bar label
+class ClickableLabel(QLabel):
+    def __init__(self, text: str = "", parent: Optional[QLabel] = None):
+        super().__init__(text, parent)
+        self.menu = None
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def setMenu(self, menu):
+        self.menu = menu
+
+    # 1. Use Optional[QMouseEvent] to match the base class signature
+    # 2. Add -> None to specify the return type
+    def mousePressEvent(self, ev: Optional[QMouseEvent]) -> None:
+        # Check that ev is not None before accessing it
+        if ev and self.menu and ev.button() == Qt.MouseButton.LeftButton:
+            # PyQt6: position() replaces pos(), and we must cast to integer point
+            self.menu.exec(self.mapToGlobal(ev.position().toPoint()))
+
+        # Ensure we pass the event to the parent class
+        super().mousePressEvent(ev)
+
+
+# Settings Manager
+class Settings:
+    def __init__(self, base_path):
+        self.base_path = base_path
+        self.settings_file = base_path / "settings.json"
+        self.defaults_file = base_path / "defaults" / "settings.json"
+        self.data = self.load()
+
+    def load(self):
+        # Try user settings first, then defaults
+        if self.settings_file.exists():
+            try:
+                return json.loads(self.settings_file.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                pass
+        if self.defaults_file.exists():
+            try:
+                return json.loads(self.defaults_file.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                pass
+        return self._default_settings()
+
+    def save(self):
+        self.settings_file.write_text(json.dumps(self.data, indent=4), encoding="utf-8")
+
+    def _default_settings(self):
+        return {
+            "version": Version,
+            "mode": "full",
+            "editor": {
+                "fontSize": 11,
+                "tabSize": 4,
+                "wordWrap": False,
+                "fontFamily": "Roboto Mono",
+            },
+            "terminal": {"fontSize": 10, "fontFamily": "Roboto Mono"},
+            "appearance": {"theme": "dark", "useSystemFont": False},
+            "keybinds": {
+                "newFile": "Ctrl+N",
+                "openFile": "Ctrl+O",
+                "save": "Ctrl+S",
+                "saveAs": "Ctrl+Shift+S",
+                "exit": "Ctrl+Q",
+                "undo": "Ctrl+Z",
+                "redo": "Ctrl+Shift+Z",
+                "zoomIn": "Ctrl++",
+                "zoomOut": "Ctrl+-",
+                "resetZoom": "Ctrl+0",
+                "toggleSidebar": "Ctrl+B",
+                "toggleTerminal": "Ctrl+`",
+            },
+            "recentFiles": [],
+            "recentFolders": [],
+            "window": {
+                "width": 1100,
+                "height": 800,
+                "sidebarWidth": 250,
+                "terminalHeight": 200,
+            },
+        }
+
+    def get(self, *keys, default=None):
+        value = self.data
+        for key in keys:
+            if isinstance(value, dict) and key in value:
+                value = value[key]
+            else:
+                return default
+        return value
+
+    def set(self, *keys, value):
+        data = self.data
+        for key in keys[:-1]:
+            if key not in data:
+                data[key] = {}
+            data = data[key]
+        data[keys[-1]] = value
+
+    def add_recent_file(self, path):
+        recent = self.data.get("recentFiles", [])
+        if path in recent:
+            recent.remove(path)
+        recent.insert(0, path)
+        self.data["recentFiles"] = recent[:10]  # Keep last 10
+        self.save()
+
+    def add_recent_folder(self, path):
+        recent = self.data.get("recentFolders", [])
+        if path in recent:
+            recent.remove(path)
+        recent.insert(0, path)
+        self.data["recentFolders"] = recent[:5]  # Keep last 5
+        self.save()
+
+    def detect_mode(self):
+        # Detect appropriate mode based on environment
+        mode = self.data.get("mode", "full")
+
+        # Check for restricted environment indicators
+        if os.environ.get("IDE_SAFE_MODE"):
+            return "safe"
+        if os.environ.get("IDE_RESTRICTED_MODE"):
+            return "restricted"
+
+        # Check write permissions
+        try:
+            test_file = self.base_path / ".write_test"
+            test_file.write_text("test")
+            test_file.unlink()
+        except (PermissionError, OSError):
+            return "safe"
+
+        return mode
+
+    def export_settings(self, path):
+        Path(path).write_text(json.dumps(self.data, indent=4), encoding="utf-8")
+
+    def import_settings(self, path):
+        try:
+            imported = json.loads(Path(path).read_text(encoding="utf-8"))
+            self.data = imported
+            self.save()
+            return True
+        except (json.JSONDecodeError, FileNotFoundError):
+            return False
+
 
 # Line number area
 class LineNumberWidget(QWidget):
@@ -34,8 +192,9 @@ class LineNumberWidget(QWidget):
     def sizeHint(self):
         return QSize(self.Editor.LineNumberWidth(), 0)
 
-    def paintEvent(self, Event):
-        self.Editor.PaintLineNumbers(Event)
+    def paintEvent(self, a0):
+        self.Editor.PaintLineNumbers(a0)
+
 
 # Code editor
 class CodeEditor(QPlainTextEdit):
@@ -58,13 +217,11 @@ class CodeEditor(QPlainTextEdit):
         self.UpdateLineNumberWidth(0)
 
     def setLanguage(self, file_path):
+        """Sets language by file path"""
         if self.Highlighter:
             self.Highlighter.setDocument(None)
 
-        self.Highlighter, self.Language = create_highlighter(
-            self.document(),
-            file_path
-        )
+        self.Highlighter, self.Language = create_highlighter(self.document(), file_path)
 
     def LineNumberWidth(self):
         Digits = len(str(max(1, self.blockCount())))
@@ -78,32 +235,26 @@ class CodeEditor(QPlainTextEdit):
             self.LineNumbers.scroll(0, Dy)
         else:
             self.LineNumbers.update(
-                0, Rect.y(),
-                self.LineNumbers.width(),
-                Rect.height()
+                0, Rect.y(), self.LineNumbers.width(), Rect.height()
             )
 
-    def resizeEvent(self, Event):
-        super().resizeEvent(Event)
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
         Cr = self.contentsRect()
         self.LineNumbers.setGeometry(
-            QRect(Cr.left(), Cr.top(),
-                  self.LineNumberWidth(), Cr.height())
+            QRect(Cr.left(), Cr.top(), self.LineNumberWidth(), Cr.height())
         )
 
     def PaintLineNumbers(self, Event):
         Painter = QPainter(self.LineNumbers)
-        Painter.fillRect(
-            Event.rect(),
-            self.LineNumbers.palette().window()
-        )
-        Painter.setPen(
-            self.LineNumbers.palette().text().color()
-        )
+        Painter.fillRect(Event.rect(), self.LineNumbers.palette().window())
+        Painter.setPen(self.LineNumbers.palette().text().color())
 
         Block = self.firstVisibleBlock()
         Number = Block.blockNumber()
-        Top = int(self.blockBoundingGeometry(Block).translated(self.contentOffset()).top())
+        Top = int(
+            self.blockBoundingGeometry(Block).translated(self.contentOffset()).top()
+        )
         Bottom = Top + int(self.blockBoundingRect(Block).height())
 
         while Block.isValid() and Top <= Event.rect().bottom():
@@ -114,12 +265,13 @@ class CodeEditor(QPlainTextEdit):
                     self.LineNumbers.width() - 8,
                     self.fontMetrics().height(),
                     Qt.AlignmentFlag.AlignRight,
-                    str(Number + 1)
+                    str(Number + 1),
                 )
             Block = Block.next()
             Top = Bottom
             Bottom = Top + int(self.blockBoundingRect(Block).height())
             Number += 1
+
 
 # OS Terminal widget
 class TerminalWidget(QWidget):
@@ -155,11 +307,11 @@ class TerminalWidget(QWidget):
             return
 
         self.OutputArea.appendPlainText(f"$ {Command}")
-        
+
         # Determine shell based on OS
         Shell = "cmd.exe" if os.name == "nt" else "/bin/bash"
         Args = ["/c", Command] if os.name == "nt" else ["-c", Command]
-        
+
         self.Process.start(Shell, Args)
         self.InputArea.clear()
 
@@ -176,268 +328,106 @@ class TerminalWidget(QWidget):
     def ScrollToBottom(self):
         self.OutputArea.moveCursor(QTextCursor.MoveOperation.End)
 
-# Main window
-class MainWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
 
-        self.BasePath = Path(__file__).parent
-        self.CurrentFile = None
-        self.CurrentEncoding = "UTF-8"
+# Settings Dialog
+class SettingsDialog(QDialog):
+    def __init__(self, settings, parent=None):
+        super().__init__(parent)
+        self.settings = settings
+        self.setWindowTitle("Settings")
+        self.setMinimumSize(400, 300)
 
-        # Font setup
-        QFontDatabase.addApplicationFont(
-            str(self.BasePath / "defaults/mainFonts/Inter-VariableFont_opsz,wght.ttf")
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+
+        # Editor settings
+        self.fontSizeSpin = QSpinBox()
+        self.fontSizeSpin.setRange(6, 72)
+        self.fontSizeSpin.setValue(settings.get("editor", "fontSize", default=11))
+        form.addRow("Editor Font Size:", self.fontSizeSpin)
+
+        self.tabSizeSpin = QSpinBox()
+        self.tabSizeSpin.setRange(1, 8)
+        self.tabSizeSpin.setValue(settings.get("editor", "tabSize", default=4))
+        form.addRow("Tab Size:", self.tabSizeSpin)
+
+        self.wordWrapCheck = QCheckBox()
+        self.wordWrapCheck.setChecked(settings.get("editor", "wordWrap", default=False))
+        form.addRow("Word Wrap:", self.wordWrapCheck)
+
+        self.systemFontCheck = QCheckBox()
+        self.systemFontCheck.setChecked(
+            settings.get("appearance", "useSystemFont", default=False)
         )
-        QFontDatabase.addApplicationFont(
-            str(self.BasePath / "defaults/mainFonts/RobotoMono-VariableFont_wght.ttf")
+        form.addRow("Use System Font:", self.systemFontCheck)
+
+        # Mode selection
+        self.modeCombo = QComboBox()
+        self.modeCombo.addItems(["full", "restricted", "safe"])
+        self.modeCombo.setCurrentText(settings.get("mode", default="full"))
+        form.addRow("Mode:", self.modeCombo)
+
+        layout.addLayout(form)
+
+        # Import/Export buttons
+        btnLayout = QVBoxLayout()
+        self.exportBtn = QLineEdit()
+        self.exportBtn.setPlaceholderText("Click to export settings...")
+        self.exportBtn.setReadOnly(True)
+        self.exportBtn.mousePressEvent = lambda a0: self.exportSettings()
+        btnLayout.addWidget(QLabel("Export:"))
+        btnLayout.addWidget(self.exportBtn)
+
+        self.importBtn = QLineEdit()
+        self.importBtn.setPlaceholderText("Click to import settings...")
+        self.importBtn.setReadOnly(True)
+        self.importBtn.mousePressEvent = lambda a0: self.importSettings()
+        btnLayout.addWidget(self.importBtn)
+
+        layout.addLayout(btnLayout)
+
+        # Dialog buttons
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
 
-        # Window settings
-        self.setWindowTitle("Custom IDE")
-        self.setMinimumSize(600, 400)
-        self.setGeometry(100, 100, 1100, 800)
-        self.setWindowIcon(
-            QIcon(str(self.BasePath / "defaults/mainAppIcon.png"))
+    def exportSettings(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Settings", "settings.json", "JSON (*.json)"
         )
+        if path:
+            self.settings.export_settings(path)
+            self.exportBtn.setText(f"Exported to {path}")
 
-        self.BuildUi()
-        self.LoadStyles()
-        self.SetupWatcher()
-
-    # Ui building
-    def BuildUi(self):
-        # Center editor
-        self.Editor = CodeEditor()
-        self.Editor.cursorPositionChanged.connect(self.UpdateStatus)
-
-        # Status bar
-        self.Status = QStatusBar()
-        self.Status.setObjectName("mainStatusBar")
-        self.setStatusBar(self.Status)
-
-        self.BuildMenuBar()
-
-        # File explorer
-        self.Model = QFileSystemModel()
-        self.Model.setRootPath(os.path.expanduser("~")) 
-
-        self.Tree = QTreeView()
-        self.Tree.setObjectName("fileExplorer")
-        self.Tree.setModel(self.Model)
-        self.Tree.setHeaderHidden(True)
-        self.Tree.setVisible(False)
-
-        for Col in range(1, 4):
-            self.Tree.setColumnHidden(Col, True)
-
-        self.Tree.doubleClicked.connect(self.OpenFromTree)
-
-        # Terminal
-        self.Terminal = TerminalWidget()
-
-        # Splitters
-        # Sidebar + Editor
-        self.HorizontalSplitter = QSplitter(Qt.Orientation.Horizontal)
-        self.HorizontalSplitter.addWidget(self.Tree)
-        self.HorizontalSplitter.addWidget(self.Editor)
-        self.HorizontalSplitter.setStretchFactor(1, 1)
-        self.HorizontalSplitter.setSizes([250, 850])
-
-        # Top Section + Terminal
-        self.VerticalSplitter = QSplitter(Qt.Orientation.Vertical)
-        self.VerticalSplitter.addWidget(self.HorizontalSplitter)
-        self.VerticalSplitter.addWidget(self.Terminal)
-        self.VerticalSplitter.setStretchFactor(0, 1)
-        self.VerticalSplitter.setSizes([600, 200])
-
-        self.setCentralWidget(self.VerticalSplitter)
-        self.UpdateStatus()
-
-    # Menu bar
-    def BuildMenuBar(self):
-        Bar = self.menuBar()
-
-        # File menu
-        FileMenu = Bar.addMenu("File")
-        FileMenu.addAction("New", self.NewFile)
-        FileMenu.addAction("Open File…", self.OpenFile)
-        FileMenu.addAction("Open Folder…", self.OpenFolder)
-        FileMenu.addAction("Clear Explorer", self.ClearExplorer)
-        FileMenu.addSeparator()
-        FileMenu.addAction("Save", self.SaveFile)
-        FileMenu.addAction("Save As…", self.SaveFileAs)
-        FileMenu.addSeparator()
-        FileMenu.addAction("Exit", self.close)
-
-        # Edit menu
-        EditMenu = Bar.addMenu("Edit")
-        EditMenu.addAction("Undo", self.Editor.undo)
-        EditMenu.addAction("Redo", self.Editor.redo)
-        EditMenu.addSeparator()
-        EditMenu.addAction("Cut", self.Editor.cut)
-        EditMenu.addAction("Copy", self.Editor.copy)
-        EditMenu.addAction("Paste", self.Editor.paste)
-
-        # View menu
-        ViewMenu = Bar.addMenu("View")
-        ViewMenu.addAction("Toggle Sidebar", self.ToggleSidebar)
-        ViewMenu.addSeparator()
-        ViewMenu.addAction("Zoom In", self.ZoomIn)
-        ViewMenu.addAction("Zoom Out", self.ZoomOut)
-        ViewMenu.addAction("Reset Zoom", self.ResetZoom)
-
-        # Tools menu
-        ToolsMenu = Bar.addMenu("Tools")
-        ToolsMenu.addAction("Settings", self.OpenSettings)
-        ToolsMenu.addAction("Terminal", self.OpenTerminal)
-        ToolsMenu.addAction("Style", self.OpenStyleOptions)
-
-        # Help menu
-        HelpMenu = Bar.addMenu("Help")
-        HelpMenu.addAction("About", lambda: QMessageBox.about(self, "About", f"Custom IDE v{Version}"))
-
-    
-
-    # Styling
-    def LoadStyles(self):
-        StylePath = self.BasePath / "style.qss"
-        if StylePath.exists():
-            self.setStyleSheet(StylePath.read_text(encoding="utf-8"))
-
-    def SetupWatcher(self):
-        self.Watcher = QFileSystemWatcher()
-        StylePath = self.BasePath / "style.qss"
-        if StylePath.exists():
-            self.Watcher.addPath(str(StylePath))
-            self.Watcher.fileChanged.connect(self.LoadStyles)
-
-    # File operations
-    def NewFile(self):
-        self.Editor.clear()
-        self.CurrentFile = None
-        self.setWindowTitle("New File - Custom IDE")
-
-    def OpenFile(self):
-        FilePath, _ = QFileDialog.getOpenFileName(self, "Open File")
-        if FilePath:
-            self.LoadFile(FilePath)
-
-    def OpenFolder(self):
-        Folder = QFileDialog.getExistingDirectory(self, "Open Folder", str(self.BasePath))
-        if not Folder:
-            return
-
-        FolderObj = Path(Folder).resolve()
-        
-        # Standard IDE behavior: Set the selected folder as the root of the tree
-        self.Model.setRootPath(str(FolderObj))
-        self.Tree.setRootIndex(self.Model.index(str(FolderObj)))
-
-        self.Tree.setVisible(True)
-        self.setWindowTitle(f"{FolderObj.name} - Custom IDE")
-
-    def ClearExplorer(self):
-        # Reset the model root and hide the tree view
-        self.Model.setRootPath("")
-        self.Tree.setRootIndex(self.Model.index(""))
-        self.Tree.setVisible(False)
-        self.Status.showMessage("Explorer Cleared", 2000)
-
-    def SaveFile(self):
-        if not self.CurrentFile:
-            self.SaveFileAs()
-            return
-        Path(self.CurrentFile).write_text(self.Editor.toPlainText(), encoding="utf-8")
-        self.Status.showMessage("Saved", 2000)
-
-    def SaveFileAs(self):
-        FilePath, _ = QFileDialog.getSaveFileName(self, "Save File As")
-        if FilePath:
-            self.CurrentFile = FilePath
-            self.SaveFile()
-            self.setWindowTitle(f"{Path(FilePath).name} - Custom IDE")
-
-    def LoadFile(self, FilePath):
-        FileObj = Path(FilePath).resolve()
-
-        self.Editor.setPlainText(
-            FileObj.read_text(encoding="utf-8")
+    def importSettings(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Settings", "", "JSON (*.json)"
         )
+        if path:
+            if self.settings.import_settings(path):
+                self.importBtn.setText("Settings imported! Restart to apply.")
+            else:
+                self.importBtn.setText("Import failed!")
 
-        self.CurrentFile = str(FileObj)
-        self.CurrentEncoding = "UTF-8"
-        self.Editor.setLanguage(str(FileObj))
-        self.UpdateStatus()
-        self.setWindowTitle(f"{FileObj.name} - Custom IDE")
-
-        # -------- FILE EXPLORER SYNC --------
-        CurrentRoot = self.Model.rootPath()
-        if not CurrentRoot or not self.CurrentFile.startswith(CurrentRoot):
-            Parent = str(FileObj.parent)
-            self.Model.setRootPath(Parent)
-            self.Tree.setRootIndex(self.Model.index(Parent))
-        
-        FileIndex = self.Model.index(str(FileObj))
-        self.Tree.setCurrentIndex(FileIndex)
-        self.Tree.scrollTo(FileIndex)
-        self.Tree.setVisible(True)
-
-
-    def OpenFromTree(self, Index):
-        FilePath = self.Model.filePath(Index)
-        if os.path.isfile(FilePath):
-            self.LoadFile(FilePath)
-
-    # View actions
-    def ToggleSidebar(self):
-        self.Tree.setVisible(not self.Tree.isVisible())
-
-    def ZoomIn(self):
-        Font = self.Editor.font()
-        Font.setPointSize(Font.pointSize() + 1)
-        self.Editor.setFont(Font)
-
-    def ZoomOut(self):
-        Font = self.Editor.font()
-        Font.setPointSize(max(6, Font.pointSize() - 1))
-        self.Editor.setFont(Font)
-
-    def ResetZoom(self):
-        Font = self.Editor.font()
-        Font.setPointSize(11)
-        self.Editor.setFont(Font)
-
-    def UpdateStatus(self):
-        Cursor = self.Editor.textCursor()
-        self.Status.showMessage(
-            f"Line {Cursor.blockNumber()+1} | "
-            f"Col {Cursor.columnNumber()+1} | "
-            f"{self.Editor.Language} | "
-            f"{self.CurrentEncoding} | "
-            f"Total {self.Editor.blockCount()}"
+    def accept(self):
+        self.settings.set("editor", "fontSize", value=self.fontSizeSpin.value())
+        self.settings.set("editor", "tabSize", value=self.tabSizeSpin.value())
+        self.settings.set("editor", "wordWrap", value=self.wordWrapCheck.isChecked())
+        self.settings.set(
+            "appearance", "useSystemFont", value=self.systemFontCheck.isChecked()
         )
+        self.settings.set("mode", value=self.modeCombo.currentText())
+        self.settings.save()
+        super().accept()
 
-    # Tool actions
-    def OpenSettings(self):
-        QMessageBox.information(self, "Settings", "Settings logic not yet implemented.")
 
-    def OpenTerminal(self):
-        Visible = self.Terminal.isVisible()
-        self.Terminal.setVisible(not Visible)
-        if not Visible:
-            self.Terminal.InputArea.setFocus()
-
-    def OpenStyleOptions(self):
-        StylePath = self.BasePath / "style.qss"
-        if StylePath.exists():
-            self.LoadFile(StylePath)
-            self.Status.showMessage("Opened Style Configuration", 2000)
-        else:
-            QMessageBox.warning(self, "Style", "style.qss file not found!")
-
-# Entry point
+# Main window entry point
 if __name__ == "__main__":
+    from window import MainWindow
+
     os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
     App = QApplication(sys.argv)
     Window = MainWindow()

@@ -1,273 +1,364 @@
-from PyQt6.QtGui import (
-    QSyntaxHighlighter,
-    QTextCharFormat,
-    QColor,
-    QFont
-)
-from PyQt6.QtCore import QRegularExpression
+# Copyright (c) 2026 n7220-pixel
+# SPDX-License-Identifier: MIT
+# See LICENSE.txt for more information.
+
+# Syntax highlighting using Pygments.
+# Supports 500+ languages.
+
 from pathlib import Path
+from re import PatternError
 
-HTML_STATE = 0
-SCRIPT_STATE = 1
-STYLE_STATE = 2
+from pygments.token import Punctuation
+from PyQt6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat
 
-class BaseHighlighter(QSyntaxHighlighter):
-    def __init__(self, document, rules):
-        super().__init__(document)
-        self.rules = rules
+try:
+    from pygments import lex
+    from pygments.lexers import get_lexer_by_name, get_lexer_for_filename
+    from pygments.token import Token
+    from pygments.util import ClassNotFound
 
-    def highlightBlock(self, text):
-        for pattern, fmt in self.rules:
-            it = pattern.globalMatch(text)
-            while it.hasNext():
-                match = it.next()
-                self.setFormat(
-                    match.capturedStart(),
-                    match.capturedLength(),
-                    fmt
-                )
-
-class HtmlHighlighter(QSyntaxHighlighter):
-    def __init__(self, document):
-        super().__init__(document)
-
-        self.html_rules = html_rules()
-        self.js_rules = javascript_rules()
-        self.css_rules = css_rules()
-
-        self.script_start = QRegularExpression(r"<script\b[^>]*>")
-        self.script_end = QRegularExpression(r"</script>")
-        self.style_start = QRegularExpression(r"<style\b[^>]*>")
-        self.style_end = QRegularExpression(r"</style>")
-
-    def highlightBlock(self, text):
-        state = self.previousBlockState()
-        if state == -1:
-            state = HTML_STATE
-
-        # HTML
-        if state == HTML_STATE:
-            for pattern, fmt in self.html_rules:
-                it = pattern.globalMatch(text)
-                while it.hasNext():
-                    m = it.next()
-                    self.setFormat(m.capturedStart(), m.capturedLength(), fmt)
-
-            if self.script_start.match(text).hasMatch():
-                self.setCurrentBlockState(SCRIPT_STATE)
-                return
-
-            if self.style_start.match(text).hasMatch():
-                self.setCurrentBlockState(STYLE_STATE)
-                return
-
-            self.setCurrentBlockState(HTML_STATE)
-            return
-
-        # SCRIPT
-        if state == SCRIPT_STATE:
-            for pattern, fmt in self.js_rules:
-                it = pattern.globalMatch(text)
-                while it.hasNext():
-                    m = it.next()
-                    self.setFormat(m.capturedStart(), m.capturedLength(), fmt)
-
-            if self.script_end.match(text).hasMatch():
-                self.setCurrentBlockState(HTML_STATE)
-            else:
-                self.setCurrentBlockState(SCRIPT_STATE)
-            return
-
-        # STYLE
-        if state == STYLE_STATE:
-            for pattern, fmt in self.css_rules:
-                it = pattern.globalMatch(text)
-                while it.hasNext():
-                    m = it.next()
-                    self.setFormat(m.capturedStart(), m.capturedLength(), fmt)
-
-            if self.style_end.match(text).hasMatch():
-                self.setCurrentBlockState(HTML_STATE)
-            else:
-                self.setCurrentBlockState(STYLE_STATE)
-            return
-
-def _fmt(color, bold=False, italic=False):
-    f = QTextCharFormat()
-    f.setForeground(QColor(color))
-    if bold:
-        f.setFontWeight(QFont.Weight.Bold)
-    if italic:
-        f.setFontItalic(True)
-    return f
+    PYGMENTS_AVAILABLE = True
+except ImportError:
+    PYGMENTS_AVAILABLE = False
 
 
-def python_rules():
-    keyword = _fmt("#569cd6", True)
-    builtin = _fmt("#4ec9b0")
-    function = _fmt("#dcdcaa")
-    string = _fmt("#ce9178")
-    comment = _fmt("#6a9955", italic=True)
-    number = _fmt("#b5cea8")
-    decorator = _fmt("#4ec9b0")
-    
-    keywords = [
-        "False", "None", "True", "and", "as", "assert", "async", "await",
-        "break", "class", "continue", "def", "del", "elif", "else",
-        "except", "finally", "for", "from", "global", "if", "import",
-        "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise",
-        "return", "try", "while", "with", "yield"
-    ]
-    
-    builtins = [
-        "abs", "all", "any", "ascii", "bin", "bool", "bytes", "chr",
-        "dict", "dir", "enumerate", "filter", "float", "format", "int",
-        "len", "list", "map", "max", "min", "open", "print", "range",
-        "repr", "set", "sorted", "str", "sum", "tuple", "type", "zip"
-    ]
-
-    return (
-        [(QRegularExpression(fr"\b{k}\b"), keyword) for k in keywords] +
-        [(QRegularExpression(fr"\b{b}\b"), builtin) for b in builtins] + [
-            (QRegularExpression(r"@\w+"), decorator),
-            (QRegularExpression(r"\b[A-Za-z_][A-Za-z0-9_]*(?=\()"), function),
-            (QRegularExpression(r"\"\"\".*?\"\"\"|'''.*?'''"), string),
-            (QRegularExpression(r"f?[\"'](?:\\.|[^\"'\\])*[\"']"), string),
-            (QRegularExpression(r"\b\d+\.?\d*\b"), number),
-            (QRegularExpression(r"#.*"), comment),
-        ]
-    )
-
-
-def javascript_rules():
-    keyword = _fmt("#569cd6", True)
-    function = _fmt("#dcdcaa")
-    string = _fmt("#ce9178")
-    comment = _fmt("#6a9955", italic=True)
-    number = _fmt("#b5cea8")
-    
-    keywords = [
-        "async", "await", "break", "case", "catch", "class", "const",
-        "continue", "debugger", "default", "delete", "do", "else",
-        "export", "extends", "finally", "for", "function", "if",
-        "import", "in", "instanceof", "let", "new", "return", "super",
-        "switch", "this", "throw", "try", "typeof", "var", "void",
-        "while", "with", "yield", "true", "false", "null", "undefined"
-    ]
-    
-    return (
-        [(QRegularExpression(fr"\b{k}\b"), keyword) for k in keywords] + [
-            (QRegularExpression(r"\b[A-Za-z_$][A-Za-z0-9_$]*(?=\()"), function),
-            (QRegularExpression(r"`(?:\\.|[^`\\])*`"), string),
-            (QRegularExpression(r"[\"'](?:\\.|[^\"'\\])*[\"']"), string),
-            (QRegularExpression(r"\b\d+\.?\d*\b"), number),
-            (QRegularExpression(r"//.*"), comment),
-            (QRegularExpression(r"/\*.*?\*/"), comment),
-        ]
-    )
-
-
-def html_rules():
-    tag = _fmt("#569cd6", True)
-    attribute = _fmt("#9cdcfe")
-    string = _fmt("#ce9178")
-    comment = _fmt("#6a9955", italic=True)
-    doctype = _fmt("#c586c0", True)
-    
-    return [
-        (QRegularExpression(r"<!--[^-]*-(?:[^-][^-]*-)*->"), comment),
-        (QRegularExpression(r"<!DOCTYPE[^>]*>"), doctype),
-        (QRegularExpression(r"</?[a-zA-Z][a-zA-Z0-9]*[^>]*>"), tag),
-        (QRegularExpression(r"\b[a-zA-Z-]+(?==)"), attribute),
-        (QRegularExpression(r"\"[^\"]*\"|'[^']*'"), string),
-    ]
-
-
-
-def css_rules():
-    selector = _fmt("#d7ba7d")
-    property_name = _fmt("#9cdcfe")
-    value = _fmt("#ce9178")
-    comment = _fmt("#6a9955", italic=True)
-    important = _fmt("#c586c0", True)
-    number = _fmt("#b5cea8")
-    
-    return [
-        (QRegularExpression(r"/\*.*?\*/"), comment),
-        (QRegularExpression(r"[.#]?[a-zA-Z_][\w-]*(?=\s*\{)"), selector),
-        (QRegularExpression(r"\b[a-zA-Z-]+(?=\s*:)"), property_name),
-        (QRegularExpression(r"!important"), important),
-        (QRegularExpression(r"#[0-9a-fA-F]{3,6}\b"), value),
-        (QRegularExpression(r"\b\d+\.?\d*(px|em|rem|%|vh|vw|pt)?\b"), number),
-        (QRegularExpression(r"\"[^\"]*\"|'[^']*'"), value),
-    ]
-
-
-def qss_rules():
-    # QSS is similar to CSS
-    return css_rules()
-
-
-def json_rules():
-    key = _fmt("#9cdcfe")
-    string = _fmt("#ce9178")
-    number = _fmt("#b5cea8")
-    boolean = _fmt("#569cd6", True)
-    null = _fmt("#569cd6", True)
-    
-    return [
-        (QRegularExpression(r"\"[^\"]*\"(?=\s*:)"), key),
-        (QRegularExpression(r":\s*\"[^\"]*\""), string),
-        (QRegularExpression(r"\b(true|false)\b"), boolean),
-        (QRegularExpression(r"\bnull\b"), null),
-        (QRegularExpression(r"\b-?\d+\.?\d*([eE][+-]?\d+)?\b"), number),
-    ]
-
-
-def lua_rules():
-    keyword = _fmt("#569cd6", True)
-    function = _fmt("#dcdcaa")
-    string = _fmt("#ce9178")
-    comment = _fmt("#6a9955", italic=True)
-    number = _fmt("#b5cea8")
-    
-    keywords = [
-        "and", "break", "do", "else", "elseif", "end", "false", "for",
-        "function", "if", "in", "local", "nil", "not", "or", "repeat",
-        "return", "then", "true", "until", "while"
-    ]
-    
-    return (
-        [(QRegularExpression(fr"\b{k}\b"), keyword) for k in keywords] + [
-            (QRegularExpression(r"\b[A-Za-z_][A-Za-z0-9_]*(?=\()"), function),
-            (QRegularExpression(r"\[\[.*?\]\]"), string),
-            (QRegularExpression(r"[\"'](?:\\.|[^\"'\\])*[\"']"), string),
-            (QRegularExpression(r"\b\d+\.?\d*\b"), number),
-            (QRegularExpression(r"--\[\[.*?\]\]"), comment),
-            (QRegularExpression(r"--.*"), comment),
-        ]
-    )
-
-
-LANGUAGES = {
-    ".py": ("Python", python_rules),
-    ".qss": ("QSS", qss_rules),
-    ".css": ("CSS", css_rules),
-    ".html": ("HTML", html_rules),
-    ".htm": ("HTML", html_rules),
-    ".js": ("JavaScript", javascript_rules),
-    ".json": ("JSON", json_rules),
-    ".lua": ("Lua", lua_rules),
+# Dark color scheme
+TOKEN_COLORS = {
+    Token.Keyword: ("#569cd6", True, False),
+    Token.Keyword.Type: ("#4ec9b0", False, False),
+    Token.Name: ("#d4d4d4", False, False),
+    Token.Name.Function: ("#dcdcaa", False, False),
+    Token.Name.Class: ("#4ec9b0", False, False),
+    Token.Name.Builtin: ("#4ec9b0", False, False),
+    Token.String: ("#ce9178", False, False),
+    Token.Number: ("#b5cea8", False, False),
+    Token.Comment: ("#6a9955", False, True),
+    Token.Operator: ("#d4d4d4", False, False),
+    Token.Punctuation: ("#d4d4d4", False, False),
+    Token.Text: ("#d4d4d4", False, False),
+    Token.Error: ("#f44747", False, False),
 }
 
 
+def _create_format(color: str, bold=False, italic=False) -> QTextCharFormat:
+    fmt = QTextCharFormat()
+    fmt.setForeground(QColor(color))
+    if bold:
+        fmt.setFontWeight(QFont.Weight.Bold)
+    if italic:
+        fmt.setFontItalic(True)
+    return fmt
+
+
+def _get_format_for_token(token_type: Token) -> QTextCharFormat:
+    # Exact match
+    if token_type in TOKEN_COLORS:
+        color, bold, italic = TOKEN_COLORS[token_type]
+        return _create_format(color, bold, italic)
+
+    # Walk up parent tokens
+    parent = token_type.parent
+    while parent is not None:
+        if parent in TOKEN_COLORS:
+            color, bold, italic = TOKEN_COLORS[parent]
+            return _create_format(color, bold, italic)
+        parent = parent.parent
+
+    # Default
+    return _create_format("#d4d4d4")
+
+
+class PygmentsHighlighter(QSyntaxHighlighter):
+    def __init__(self, document, lexer):
+        super().__init__(document)
+        self.lexer = lexer
+        self._format_cache = {}
+
+    def get_format(self, token_type):
+        if token_type not in self._format_cache:
+            self._format_cache[token_type] = _get_format_for_token(token_type)
+        return self._format_cache[token_type]
+
+    def highlightBlock(self, text):
+        if not text or not PYGMENTS_AVAILABLE:
+            return
+
+        index = 0
+        try:
+            for token_type, token_value in lex(text, self.lexer):
+                length = len(token_value)
+                if token_type not in (Token.Text, Token.Whitespace):
+                    fmt = self.get_format(token_type)
+                    self.setFormat(index, length, fmt)
+                index += length
+        except Exception:
+            pass  # Fail gracefully if lexer errors
+
+
+class FullDocumentHighlighter(QSyntaxHighlighter):
+    def __init__(self, document, lexer):
+        super().__init__(document)
+        self.lexer = lexer
+        self._format_cache = {}
+        self._block_tokens = {}
+        self._document_hash = None
+
+    def get_format(self, token_type):
+        if token_type not in self._format_cache:
+            self._format_cache[token_type] = _get_format_for_token(token_type)
+        return self._format_cache[token_type]
+
+    def _tokenize_document(self):
+        doc = self.document()
+        full_text = doc.toPlainText()
+        new_hash = hash(full_text)
+        if new_hash == self._document_hash:
+            return
+        self._document_hash = new_hash
+        self._block_tokens = {}
+
+        current_line = 0
+        current_col = 0
+        try:
+            for token_type, token_value in lex(full_text, self.lexer):
+                lines = token_value.split("\n")
+                for i, line_part in enumerate(lines):
+                    if i > 0:
+                        current_line += 1
+                        current_col = 0
+                    if line_part and token_type not in (Token.Text, Token.Whitespace):
+                        self._block_tokens.setdefault(current_line, []).append(
+                            (current_col, len(line_part), token_type)
+                        )
+                    current_col += len(line_part)
+        except Exception:
+            pass
+
+    def highlightBlock(self, text):
+        if not text or not PYGMENTS_AVAILABLE:
+            return
+        # NOTE: This is computationally expensive for large files
+        self._tokenize_document()
+        block_num = self.currentBlock().blockNumber()
+        for col, length, token_type in self._block_tokens.get(block_num, []):
+            fmt = self.get_format(token_type)
+            self.setFormat(col, length, fmt)
+
+
+# Full list of languages/extensions
+LANGUAGE_NAMES = {
+    ".py": "Python",
+    ".pyw": "Python",
+    ".pyx": "Cython",
+    ".pxd": "Cython",
+    ".js": "JavaScript",
+    ".jsx": "JavaScript (JSX)",
+    ".ts": "TypeScript",
+    ".tsx": "TypeScript (TSX)",
+    ".html": "HTML",
+    ".htm": "HTML",
+    ".xhtml": "XHTML",
+    ".css": "CSS",
+    ".scss": "SCSS",
+    ".sass": "Sass",
+    ".less": "Less",
+    ".json": "JSON",
+    ".json5": "JSON5",
+    ".yaml": "YAML",
+    ".yml": "YAML",
+    ".toml": "TOML",
+    ".xml": "XML",
+    ".svg": "SVG",
+    ".md": "Markdown",
+    ".markdown": "Markdown",
+    ".rst": "reStructuredText",
+    ".txt": "Plain Text",
+    ".c": "C",
+    ".h": "C Header",
+    ".cpp": "C++",
+    ".cxx": "C++",
+    ".cc": "C++",
+    ".hpp": "C++ Header",
+    ".hxx": "C++ Header",
+    ".cs": "C#",
+    ".java": "Java",
+    ".kt": "Kotlin",
+    ".kts": "Kotlin Script",
+    ".scala": "Scala",
+    ".go": "Go",
+    ".rs": "Rust",
+    ".swift": "Swift",
+    ".m": "Objective-C",
+    ".mm": "Objective-C++",
+    ".rb": "Ruby",
+    ".php": "PHP",
+    ".pl": "Perl",
+    ".pm": "Perl Module",
+    ".lua": "Lua",
+    ".r": "R",
+    ".jl": "Julia",
+    ".hs": "Haskell",
+    ".lhs": "Literate Haskell",
+    ".ml": "OCaml",
+    ".mli": "OCaml Interface",
+    ".fs": "F#",
+    ".fsx": "F# Script",
+    ".ex": "Elixir",
+    ".exs": "Elixir Script",
+    ".erl": "Erlang",
+    ".hrl": "Erlang Header",
+    ".clj": "Clojure",
+    ".cljs": "ClojureScript",
+    ".lisp": "Common Lisp",
+    ".cl": "Common Lisp",
+    ".el": "Emacs Lisp",
+    ".scm": "Scheme",
+    ".rkt": "Racket",
+    ".sql": "SQL",
+    ".sh": "Shell",
+    ".bash": "Bash",
+    ".zsh": "Zsh",
+    ".fish": "Fish",
+    ".ps1": "PowerShell",
+    ".psm1": "PowerShell Module",
+    ".bat": "Batch",
+    ".cmd": "Batch",
+    ".asm": "Assembly",
+    ".s": "Assembly",
+    ".S": "Assembly",
+    ".v": "Verilog",
+    ".sv": "SystemVerilog",
+    ".vhd": "VHDL",
+    ".vhdl": "VHDL",
+    ".tex": "LaTeX",
+    ".latex": "LaTeX",
+    ".bib": "BibTeX",
+    ".makefile": "Makefile",
+    ".mk": "Makefile",
+    ".cmake": "CMake",
+    ".gradle": "Gradle",
+    ".groovy": "Groovy",
+    ".dockerfile": "Dockerfile",
+    ".docker": "Dockerfile",
+    ".nginx": "Nginx",
+    ".conf": "Config",
+    ".ini": "INI",
+    ".cfg": "Config",
+    ".properties": "Properties",
+    ".env": "Environment",
+    ".gitignore": "Git Ignore",
+    ".gitattributes": "Git Attributes",
+    ".editorconfig": "EditorConfig",
+    ".qss": "QSS",
+    ".dart": "Dart",
+    ".vue": "Vue",
+    ".svelte": "Svelte",
+    ".astro": "Astro",
+    ".zig": "Zig",
+    ".nim": "Nim",
+    ".d": "D",
+    ".pas": "Pascal",
+    ".pp": "Pascal",
+    ".f90": "Fortran",
+    ".f95": "Fortran",
+    ".f03": "Fortran",
+    ".f": "Fortran",
+    ".cob": "COBOL",
+    ".cbl": "COBOL",
+    ".ada": "Ada",
+    ".adb": "Ada",
+    ".ads": "Ada",
+    ".pro": "Prolog",
+    ".tcl": "Tcl",
+    ".awk": "AWK",
+    ".sed": "sed",
+    ".vim": "Vim Script",
+    ".applescript": "AppleScript",
+}
+
+FULL_DOCUMENT_LANGUAGES = {
+    ".html",
+    ".htm",
+    ".xhtml",
+    ".vue",
+    ".svelte",
+    ".astro",
+    ".php",
+    ".erb",
+    ".ejs",
+    ".jinja",
+    ".jinja2",
+    ".twig",
+}
+
+
+def get_language_name(file_path: str) -> str:
+    if not file_path:
+        return "Plain Text"
+    path = Path(file_path)
+    ext = path.suffix.lower()
+    special_names = {
+        "makefile": "Makefile",
+        "gnumakefile": "Makefile",
+        "dockerfile": "Dockerfile",
+        "cmakelists.txt": "CMake",
+        "rakefile": "Ruby",
+        "gemfile": "Ruby",
+        ".bashrc": "Bash",
+        ".bash_profile": "Bash",
+        ".zshrc": "Zsh",
+        ".profile": "Shell",
+        ".gitignore": "Git Ignore",
+        ".gitattributes": "Git Attributes",
+        ".editorconfig": "EditorConfig",
+    }
+    if path.name.lower() in special_names:
+        return special_names[path.name.lower()]
+    return LANGUAGE_NAMES.get(ext, "Plain Text")
+
+
+def get_all_languages():
+    """Returns a sorted list of all unique supported language names."""
+    return sorted(list(set(LANGUAGE_NAMES.values())))
+
+
 def create_highlighter(document, file_path):
+    """Creates a highlighter based on the filename/extension."""
+    if not PYGMENTS_AVAILABLE or not file_path:
+        return None, "Plain Text"
+
+    language_name = get_language_name(file_path)
     ext = Path(file_path).suffix.lower()
 
-    if ext in (".html", ".htm"):
-        return HtmlHighlighter(document), "HTML"
+    try:
+        lexer = get_lexer_for_filename(file_path, stripnl=False, stripall=False)
+        if ext in FULL_DOCUMENT_LANGUAGES:
+            return FullDocumentHighlighter(document, lexer), language_name
+        return PygmentsHighlighter(document, lexer), language_name
+    except ClassNotFound:
+        return None, "Plain Text"
 
-    if ext in LANGUAGES:
-        name, rule_fn = LANGUAGES[ext]
-        return BaseHighlighter(document, rule_fn()), name
-    return None, "Plain Text"
+
+def create_highlighter_by_name(document, language_name):
+    """Creates a highlighter based on the language name (e.g. 'Python')."""
+    if not PYGMENTS_AVAILABLE or not language_name or language_name == "Plain Text":
+        return None, "Plain Text"
+
+    try:
+        # Map common display names to pygments aliases if necessary
+        lexer = get_lexer_by_name(language_name, stripnl=False, stripall=False)
+
+        # Check if this language requires full document parsing
+        is_full_doc = False
+        # Reverse check extension for full doc languages
+        # This is an estimation, as we only have the name here
+        for ext, name in LANGUAGE_NAMES.items():
+            if name == language_name and ext in FULL_DOCUMENT_LANGUAGES:
+                is_full_doc = True
+                break
+
+        if is_full_doc:
+            return FullDocumentHighlighter(document, lexer), language_name
+        return PygmentsHighlighter(document, lexer), language_name
+    except ClassNotFound:
+        return None, "Plain Text"

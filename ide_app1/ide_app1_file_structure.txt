@@ -1,20 +1,21 @@
-ide_app1 (parent folder)
+ide_app1/
 |
 |-- LICENSE.txt
 |-- main.py
-|-- style.qss
-|--ide_app1_file_structure.txt (this file)
+|-- ide_app1_file_structure.txt (this file)
 |
 |-- defaults/
 |   |
-|   |--mainAppIcon.png
-|   |-- defaultStyle.qss
+|   |-- mainAppIcon.png
+|   |-- style.qss
+|   |-- settings.json
 |   |-- info.txt
 |   |-- mainFonts/
 |       |
-|       |--Inter-VariableFont_opsz,wght.ttf
-|       |--RobotoMono-VariableFont_wght.ttf
+|       |-- Inter-VariableFont_opsz,wght.ttf
+|       |-- RobotoMono-VariableFont_wght.ttf
 |
-|--languageSupport/
-│
-|-- syntax.py
+|-- languageSupport/
+|   |
+|   |-- syntax.py
+|   |-- (language definition files)

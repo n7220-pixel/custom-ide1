@@ -1,0 +1,92 @@
+{
+    "version": "2.0.0",
+    "mode": "full",
+    "editor": {
+        "fontSize": 11,
+        "tabSize": 4,
+        "wordWrap": false,
+        "lineNumbers": true,
+        "highlightCurrentLine": true,
+        "autoIndent": true,
+        "fontFamily": "Roboto Mono"
+    },
+    "terminal": {
+        "fontSize": 10,
+        "shell": "auto",
+        "fontFamily": "Roboto Mono"
+    },
+    "appearance": {
+        "theme": "dark",
+        "styleSheet": "style.qss",
+        "useSystemFont": false
+    },
+    "keybinds": {
+        "newFile": "Ctrl+N",
+        "openFile": "Ctrl+O",
+        "openFolder": "Ctrl+Shift+O",
+        "save": "Ctrl+S",
+        "saveAs": "Ctrl+Shift+S",
+        "close": "Ctrl+W",
+        "exit": "Ctrl+Q",
+        "undo": "Ctrl+Z",
+        "redo": "Ctrl+Shift+Z",
+        "cut": "Ctrl+X",
+        "copy": "Ctrl+C",
+        "paste": "Ctrl+V",
+        "selectAll": "Ctrl+A",
+        "find": "Ctrl+F",
+        "replace": "Ctrl+H",
+        "zoomIn": "Ctrl++",
+        "zoomOut": "Ctrl+-",
+        "resetZoom": "Ctrl+0",
+        "toggleSidebar": "Ctrl+B",
+        "toggleTerminal": "Ctrl+`",
+        "settings": "Ctrl+,"
+    },
+    "modes": {
+        "full": {
+            "description": "All features enabled",
+            "network": true,
+            "plugins": true,
+            "terminal": true,
+            "fileAccess": "all"
+        },
+        "restricted": {
+            "description": "Network blocked, plugins disabled",
+            "network": false,
+            "plugins": false,
+            "terminal": true,
+            "fileAccess": "all"
+        },
+        "safe": {
+            "description": "Only open, edit, save local files",
+            "network": false,
+            "plugins": false,
+            "terminal": false,
+            "fileAccess": "local"
+        }
+    },
+    "recentFiles": [
+        "/home/ns7220/Documents/Programs/testfolder for Ide/firstsavetest.py",
+        "/home/ns7220/Documents/Programs/testfolder for Ide/empty.js",
+        "/home/ns7220/Documents/Programs/testfolder for Ide/testrb.rb",
+        "/home/ns7220/Documents/Programs/testfolder for Ide/cblfile.cbl",
+        "/home/ns7220/Documents/Programs/ide_app1/defaults/style.qss",
+        "/home/ns7220/Documents/Programs/testfolder for Ide/Text File.txt",
+        "/home/ns7220/Documents/Programs/testfolder for Ide/Py file 2.py",
+        "/home/ns7220/Documents/Programs/testfolder for Ide/nextest2.py",
+        "/home/ns7220/Documents/Programs/testfolder for Ide/HTML File.html"
+    ],
+    "recentFolders": [
+        "/home/ns7220/Documents/Programs/testfolder for Ide"
+    ],
+    "window": {
+        "width": 1312,
+        "height": 803,
+        "x": 100,
+        "y": 100,
+        "maximized": false,
+        "sidebarWidth": 0,
+        "terminalHeight": 200
+    }
+}

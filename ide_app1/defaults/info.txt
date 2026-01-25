@@ -1,3 +1,4 @@
-Everything in the defaults folder is not meant to be modified.
-The purpose of this is to be able to restore broken settings to their defaults.
-Do not delete, modify, or add items in "defaults" folder or anything inside of it.
+The defaults folder contains default settings for the IDE.
+These can now be customized as of version 2.0.0
+Do not delete any files from here.
+Modify at your own risk.
