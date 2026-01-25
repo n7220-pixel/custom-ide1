@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: MIT
 # See LICENSE.txt for more information.
 
-# Imports
 import json
 import os
 import sys
@@ -12,9 +11,11 @@ from typing import Optional
 from PyQt6.QtCore import QProcess, QRect, QSize, Qt
 from PyQt6.QtGui import QMouseEvent, QPainter, QTextCursor
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QCheckBox,
     QComboBox,
+    QCompleter,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -27,13 +28,12 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-# Fix import path
-from languageSupport.syntax import create_highlighter
+from languageSupport.syntax import create_completer, create_highlighter
 
-Version = "2.0.0"
+AppName = "CoreFlow IDE"
+Version = "2.1.0"
 
 
-# Clickable status bar label
 class ClickableLabel(QLabel):
     def __init__(self, text: str = "", parent: Optional[QLabel] = None):
         super().__init__(text, parent)
@@ -43,19 +43,12 @@ class ClickableLabel(QLabel):
     def setMenu(self, menu):
         self.menu = menu
 
-    # 1. Use Optional[QMouseEvent] to match the base class signature
-    # 2. Add -> None to specify the return type
     def mousePressEvent(self, ev: Optional[QMouseEvent]) -> None:
-        # Check that ev is not None before accessing it
         if ev and self.menu and ev.button() == Qt.MouseButton.LeftButton:
-            # PyQt6: position() replaces pos(), and we must cast to integer point
             self.menu.exec(self.mapToGlobal(ev.position().toPoint()))
-
-        # Ensure we pass the event to the parent class
         super().mousePressEvent(ev)
 
 
-# Settings Manager
 class Settings:
     def __init__(self, base_path):
         self.base_path = base_path
@@ -64,7 +57,6 @@ class Settings:
         self.data = self.load()
 
     def load(self):
-        # Try user settings first, then defaults
         if self.settings_file.exists():
             try:
                 return json.loads(self.settings_file.read_text(encoding="utf-8"))
@@ -138,7 +130,7 @@ class Settings:
         if path in recent:
             recent.remove(path)
         recent.insert(0, path)
-        self.data["recentFiles"] = recent[:10]  # Keep last 10
+        self.data["recentFiles"] = recent[:10]
         self.save()
 
     def add_recent_folder(self, path):
@@ -146,27 +138,21 @@ class Settings:
         if path in recent:
             recent.remove(path)
         recent.insert(0, path)
-        self.data["recentFolders"] = recent[:5]  # Keep last 5
+        self.data["recentFolders"] = recent[:5]
         self.save()
 
     def detect_mode(self):
-        # Detect appropriate mode based on environment
         mode = self.data.get("mode", "full")
-
-        # Check for restricted environment indicators
         if os.environ.get("IDE_SAFE_MODE"):
             return "safe"
         if os.environ.get("IDE_RESTRICTED_MODE"):
             return "restricted"
-
-        # Check write permissions
         try:
             test_file = self.base_path / ".write_test"
             test_file.write_text("test")
             test_file.unlink()
         except (PermissionError, OSError):
             return "safe"
-
         return mode
 
     def export_settings(self, path):
@@ -182,7 +168,6 @@ class Settings:
             return False
 
 
-# Line number area
 class LineNumberWidget(QWidget):
     def __init__(self, Editor):
         super().__init__(Editor)
@@ -196,7 +181,6 @@ class LineNumberWidget(QWidget):
         self.Editor.PaintLineNumbers(a0)
 
 
-# Code editor
 class CodeEditor(QPlainTextEdit):
     def __init__(self):
         super().__init__()
@@ -205,23 +189,130 @@ class CodeEditor(QPlainTextEdit):
         self.LineNumbers = LineNumberWidget(self)
         self.Highlighter = None
         self.Language = "Plain text"
+        self.completer = None
 
-        TabSpaceAmount = " " * 11
-
+        TabSpaceAmount = " " * 4
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.setTabStopDistance(self.fontMetrics().horizontalAdvance(TabSpaceAmount))
 
         self.blockCountChanged.connect(self.UpdateLineNumberWidth)
         self.updateRequest.connect(self.UpdateLineNumbers)
-
         self.UpdateLineNumberWidth(0)
 
+        self.setCompleter(create_completer("Plain Text"))
+
+    def setCompleter(self, completer):
+        if self.completer:
+            try:
+                self.completer.activated.disconnect()
+            except:
+                pass
+
+        self.completer = completer
+        if not self.completer:
+            return
+
+        self.completer.setWidget(self)
+        self.completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.completer.activated.connect(self.insertCompletion)
+
+    def insertCompletion(self, completion):
+        if not self.completer or self.completer.widget() != self:
+            return
+
+        tc = self.textCursor()
+
+        if (
+            hasattr(self.completer, "snippets")
+            and completion in self.completer.snippets
+        ):
+            snippet = self.completer.snippets[completion]
+            tc.select(QTextCursor.SelectionType.WordUnderCursor)
+            tc.removeSelectedText()
+            tc.insertText(snippet)
+        else:
+            extra = len(completion) - len(self.completer.completionPrefix())
+            tc.movePosition(QTextCursor.MoveOperation.Left)
+            tc.movePosition(QTextCursor.MoveOperation.EndOfWord)
+            tc.insertText(completion[-extra:])
+
+        self.setTextCursor(tc)
+
+    def textUnderCursor(self):
+        tc = self.textCursor()
+        tc.select(QTextCursor.SelectionType.WordUnderCursor)
+        return tc.selectedText()
+
+    def keyPressEvent(self, e):
+        # Handle popup keys
+        if self.completer and self.completer.popup().isVisible():
+            if e.key() in (
+                Qt.Key.Key_Enter,
+                Qt.Key.Key_Return,
+                Qt.Key.Key_Escape,
+                Qt.Key.Key_Tab,
+            ):
+                e.ignore()
+                return
+
+        # Check for completion shortcut
+        is_shortcut = (
+            e.modifiers() == Qt.KeyboardModifier.ControlModifier
+            and e.key() == Qt.Key.Key_Space
+        )
+
+        # Normal key handling
+        if not is_shortcut:
+            super().keyPressEvent(e)
+
+        # Don't show completion if no completer
+        if not self.completer:
+            return
+
+        # Get completion prefix
+        completion_prefix = self.textUnderCursor()
+
+        # Hide if conditions not met
+        ctrl_or_shift = e.modifiers() & (
+            Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+        )
+        has_modifier = (
+            e.modifiers() != Qt.KeyboardModifier.NoModifier and not ctrl_or_shift
+        )
+
+        if not is_shortcut and (has_modifier or len(completion_prefix) < 2):
+            self.completer.popup().hide()
+            return
+
+        # Update and show completer
+        if completion_prefix != self.completer.completionPrefix():
+            self.completer.setCompletionPrefix(completion_prefix)
+            self.completer.popup().setCurrentIndex(
+                self.completer.completionModel().index(0, 0)
+            )
+
+        # Position popup
+        cr = self.cursorRect()
+        cr.setWidth(
+            self.completer.popup().sizeHintForColumn(0)
+            + self.completer.popup().verticalScrollBar().sizeHint().width()
+        )
+
+        # Show above if there's room
+        popup_height = self.completer.popup().sizeHint().height()
+        if cr.top() > popup_height:
+            cr.translate(0, -popup_height - cr.height())
+
+        self.completer.complete(cr)
+
     def setLanguage(self, file_path):
-        """Sets language by file path"""
         if self.Highlighter:
             self.Highlighter.setDocument(None)
-
         self.Highlighter, self.Language = create_highlighter(self.document(), file_path)
+
+        new_completer = create_completer(self.Language)
+        self.setCompleter(new_completer)
 
     def LineNumberWidth(self):
         Digits = len(str(max(1, self.blockCount())))
@@ -273,7 +364,6 @@ class CodeEditor(QPlainTextEdit):
             Number += 1
 
 
-# OS Terminal widget
 class TerminalWidget(QWidget):
     def __init__(self, Parent=None):
         super().__init__(Parent)
@@ -298,20 +388,15 @@ class TerminalWidget(QWidget):
 
         self.Layout.addWidget(self.OutputArea)
         self.Layout.addWidget(self.InputArea)
-
         self.OutputArea.appendPlainText(f"Terminal Initialized in {os.getcwd()}\n")
 
     def SendCommand(self):
         Command = self.InputArea.text()
         if not Command.strip():
             return
-
         self.OutputArea.appendPlainText(f"$ {Command}")
-
-        # Determine shell based on OS
         Shell = "cmd.exe" if os.name == "nt" else "/bin/bash"
         Args = ["/c", Command] if os.name == "nt" else ["-c", Command]
-
         self.Process.start(Shell, Args)
         self.InputArea.clear()
 
@@ -329,7 +414,6 @@ class TerminalWidget(QWidget):
         self.OutputArea.moveCursor(QTextCursor.MoveOperation.End)
 
 
-# Settings Dialog
 class SettingsDialog(QDialog):
     def __init__(self, settings, parent=None):
         super().__init__(parent)
@@ -340,7 +424,6 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(self)
         form = QFormLayout()
 
-        # Editor settings
         self.fontSizeSpin = QSpinBox()
         self.fontSizeSpin.setRange(6, 72)
         self.fontSizeSpin.setValue(settings.get("editor", "fontSize", default=11))
@@ -361,7 +444,6 @@ class SettingsDialog(QDialog):
         )
         form.addRow("Use System Font:", self.systemFontCheck)
 
-        # Mode selection
         self.modeCombo = QComboBox()
         self.modeCombo.addItems(["full", "restricted", "safe"])
         self.modeCombo.setCurrentText(settings.get("mode", default="full"))
@@ -369,7 +451,6 @@ class SettingsDialog(QDialog):
 
         layout.addLayout(form)
 
-        # Import/Export buttons
         btnLayout = QVBoxLayout()
         self.exportBtn = QLineEdit()
         self.exportBtn.setPlaceholderText("Click to export settings...")
@@ -383,10 +464,8 @@ class SettingsDialog(QDialog):
         self.importBtn.setReadOnly(True)
         self.importBtn.mousePressEvent = lambda a0: self.importSettings()
         btnLayout.addWidget(self.importBtn)
-
         layout.addLayout(btnLayout)
 
-        # Dialog buttons
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -408,9 +487,11 @@ class SettingsDialog(QDialog):
         )
         if path:
             if self.settings.import_settings(path):
-                self.importBtn.setText("Settings imported! Restart to apply.")
+                self.importBtn.setText(
+                    f"{AppName} Settings imported! Restart to apply."
+                )
             else:
-                self.importBtn.setText("Import failed!")
+                self.importBtn.setText(f"{AppName} Import failed!")
 
     def accept(self):
         self.settings.set("editor", "fontSize", value=self.fontSizeSpin.value())
@@ -424,7 +505,6 @@ class SettingsDialog(QDialog):
         super().accept()
 
 
-# Main window entry point
 if __name__ == "__main__":
     from window import MainWindow
 

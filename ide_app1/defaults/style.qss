@@ -4,7 +4,7 @@ You can customize colors, fonts, and other visual aspects here.
 This can be modified while the app is running.
 */
 
-/* Main Window */
+/* Main window background */
 QMainWindow {
     background: qlineargradient(
         x1: 0,
@@ -172,3 +172,53 @@ QSplitter::handle:horizontal {
 QSplitter::handle:vertical {
     height: 1px;
 }
+
+/* Autocomplete Popup */
+QListView#completionPopup {
+    background-color: #1e2428;
+    color: #cccccc;
+    border: 1px solid #2e2e2e;
+    border-radius: 5px;
+    font-family: "Roboto Mono", Consolas, monospace;
+    font-size: 10pt;
+    padding: 2px;
+    outline: none;
+    selection-background-color: #094771;
+    selection-color: #ffffff;
+}
+
+QListView#completionPopup::item {
+    padding: 4px 8px;
+    border-radius: 3px;
+    min-height: 20px;
+}
+
+QListView#completionPopup::item:selected {
+    background-color: #094771;
+    color: #ffffff;
+}
+
+QListView#completionPopup::item:hover {
+    background-color: #2a2d2e;
+}
+
+/* Autocomplete Scrollbar */
+QListView#completionPopup QScrollBar:vertical {
+    background: #1e2428;
+    width: 10px;
+    border-radius: 5px;
+}
+
+QListView#completionPopup QScrollBar::handle:vertical {
+    background: #555555;
+    border-radius: 5px;
+    min-height: 20px;
+}
+
+QListView#completionPopup QScrollBar::handle:vertical:hover {
+    background: #666666;
+}
+
+QListView#completionPopup QScrollBar::add-line:vertical,
+QListView#completionPopup QScrollBar::sub-line:vertical {
+    height: 0px;
