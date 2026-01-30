@@ -56,6 +56,7 @@ QStatusBar QLabel {
     border-left-width: 1px;
     border-right-width: 1px;
     padding-bottom: 5px;
+	font-size: 15px;
 }
 
 /* Menu bar */
@@ -114,7 +115,7 @@ QMenu::item:selected {
 
 /* File Explorer */
 QTreeView#fileExplorer {
-    background-color: rgba(30, 30, 30, 128);
+    background-color: rgba(30, 30, 30, 50);
     color: #cccccc;
     border: none;
     border-right: 1px solid #333333;
@@ -208,7 +209,7 @@ QListView#completionPopup QScrollBar:vertical {
     width: 10px;
     border-radius: 5px;
 }
-
+	border-radius: 0px;
 QListView#completionPopup QScrollBar::handle:vertical {
     background: #555555;
     border-radius: 5px;
@@ -222,3 +223,4 @@ QListView#completionPopup QScrollBar::handle:vertical:hover {
 QListView#completionPopup QScrollBar::add-line:vertical,
 QListView#completionPopup QScrollBar::sub-line:vertical {
     height: 0px;
+}

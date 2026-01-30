@@ -42,6 +42,7 @@ from main import (
     SettingsDialog,
     TerminalWidget,
     Version,
+    Website,
 )
 
 
@@ -136,8 +137,7 @@ class MainWindow(QMainWindow):
                 "CSS",
                 "JavaScript",
                 "TypeScript",
-                "JavaScript (JSX)",
-                "TypeScript (TSX)",
+                "React (JSX/TSX)",
                 "Vue",
                 "Svelte",
                 "Astro",
@@ -146,16 +146,12 @@ class MainWindow(QMainWindow):
                 "Less",
                 "PHP",
                 "JSON",
-                "JSON5",
                 "XML",
                 "SVG",
-                "XHTML",
             ],
             "Systems": [
                 "C",
                 "C++",
-                "C Header",
-                "C++ Header",
                 "Rust",
                 "Go",
                 "Zig",
@@ -163,83 +159,63 @@ class MainWindow(QMainWindow):
                 "D",
                 "Assembly",
                 "Verilog",
-                "SystemVerilog",
                 "VHDL",
             ],
-            "JVM": ["Java", "Kotlin", "Kotlin Script", "Scala", "Groovy", "Clojure"],
-            ".NET": ["C#", "F#", "F# Script"],
+            "JVM": ["Java", "Kotlin", "Scala", "Groovy", "Clojure"],
+            ".NET": ["C#", "F#", "Visual Basic"],
             "Scripting": [
                 "Python",
                 "Ruby",
                 "Perl",
-                "Perl Module",
                 "Lua",
                 "PHP",
                 "Bash",
                 "Shell",
-                "Zsh",
-                "Fish",
                 "PowerShell",
-                "PowerShell Module",
                 "Batch",
                 "AWK",
                 "Tcl",
                 "Vim Script",
-                "AppleScript",
             ],
             "Functional": [
                 "Haskell",
-                "Literate Haskell",
                 "OCaml",
-                "OCaml Interface",
                 "F#",
-                "F# Script",
                 "Elixir",
-                "Elixir Script",
                 "Erlang",
-                "Erlang Header",
                 "Clojure",
-                "ClojureScript",
                 "Common Lisp",
-                "Emacs Lisp",
                 "Scheme",
                 "Racket",
             ],
             "Data / Config": [
                 "JSON",
-                "JSON5",
                 "YAML",
                 "TOML",
                 "XML",
                 "INI",
-                "Config",
                 "Properties",
-                "Environment",
-                "EditorConfig",
             ],
-            "Markup": ["Markdown", "reStructuredText", "LaTeX", "BibTeX", "HTML"],
+            "Markup": ["Markdown", "reStructuredText", "LaTeX", "HTML"],
             "Mobile": [
                 "Swift",
                 "Objective-C",
-                "Objective-C++",
                 "Kotlin",
                 "Dart",
                 "Java",
             ],
             "Scientific": ["Python", "R", "Julia", "Fortran", "MATLAB"],
             "Other": [
-                "Ada",
-                "COBOL",
-                "Pascal",
-                "Prolog",
-                "Cython",
                 "Makefile",
                 "CMake",
                 "Dockerfile",
                 "Nginx",
                 "Gradle",
-                "Git Ignore",
-                "Git Attributes",
+                "Ada",
+                "COBOL",
+                "Pascal",
+                "Prolog",
+                "Cython",
                 "QSS",
             ],
         }
@@ -249,7 +225,10 @@ class MainWindow(QMainWindow):
         )
         self.LanguageMenu.addSeparator()
 
-        all_languages = set(get_all_languages())
+        # Build a set of all languages from the categories
+        all_languages = set()
+        for langs in language_categories.values():
+            all_languages.update(langs)
 
         for category, langs in language_categories.items():
             submenu = self.LanguageMenu.addMenu(category)
@@ -441,9 +420,9 @@ class MainWindow(QMainWindow):
         if ViewMenu:
             self.AddMenuAction(
                 ViewMenu,
-                "Toggle Sidebar",
-                self.ToggleSidebar,
-                keybinds.get("toggleSidebar"),
+                "Toggle Left Sidebar",
+                self.ToggleLeftSidebar,
+                keybinds.get("toggleLeftSidebar"),
             )
             self.AddMenuAction(
                 ViewMenu,
@@ -474,6 +453,15 @@ class MainWindow(QMainWindow):
                 "About",
                 lambda: QMessageBox.about(
                     self, "About", f"{AppName} v{Version}\nMode: {self.Mode.upper()}"
+                ),
+            )
+            self.AddMenuAction(
+                HelpMenu,
+                "Donate",
+                lambda: QMessageBox.about(
+                    self,
+                    "Donate",
+                    f"Donate to support the development of {AppName} at <a href='{Website}'>{Website}</a>.",
                 ),
             )
 
@@ -544,7 +532,19 @@ class MainWindow(QMainWindow):
 
     def LoadFile(self, FilePath):
         FileObj = Path(FilePath).resolve()
-        self.Editor.setPlainText(FileObj.read_text(encoding="utf-8"))
+
+        try:
+            content = FileObj.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            QMessageBox.warning(
+                self, "Error", f"Cannot open binary file:\n{FileObj.name}"
+            )
+            return
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Failed to open file:\n{str(e)}")
+            return
+
+        self.Editor.setPlainText(content)
         self.CurrentFile = str(FileObj)
         self.CurrentEncoding = "UTF-8"
         self.Editor.setLanguage(str(FileObj))
@@ -553,7 +553,16 @@ class MainWindow(QMainWindow):
         self.Settings.add_recent_file(str(FileObj))
 
         CurrentRoot = self.Model.rootPath()
-        if not CurrentRoot or not self.CurrentFile.startswith(CurrentRoot):
+
+        is_within_root = False
+        if CurrentRoot:
+            try:
+                FileObj.relative_to(CurrentRoot)
+                is_within_root = True
+            except ValueError:
+                is_within_root = False
+
+        if not CurrentRoot or not is_within_root:
             Parent = str(FileObj.parent)
             self.Model.setRootPath(Parent)
             self.Tree.setRootIndex(self.Model.index(Parent))
@@ -568,7 +577,7 @@ class MainWindow(QMainWindow):
         if os.path.isfile(FilePath):
             self.LoadFile(FilePath)
 
-    def ToggleSidebar(self):
+    def ToggleLeftSidebar(self):
         self.Tree.setVisible(not self.Tree.isVisible())
 
     def ZoomIn(self):
@@ -599,11 +608,11 @@ class MainWindow(QMainWindow):
     def SetLanguage(self, language):
         if self.Editor.Highlighter:
             self.Editor.Highlighter.setDocument(None)
+
         self.Editor.Highlighter, self.Editor.Language = create_highlighter_by_name(
             self.Editor.document(), language
         )
 
-        # Update completer for new language
         new_completer = create_completer(language)
         self.Editor.setCompleter(new_completer)
 

@@ -1,5 +1,9 @@
 {
-  "version": "2.0.0",
+  "Comment": "This contains the default settings for the IDE.",
+  "Comment2": "Do not edit or delete this file.",
+  "Comment3": "The IDE will fallback to this if the main settings file is missing or broken.",
+
+  "version": "2.1.0",
   "mode": "full",
   "editor": {
     "fontSize": 11,
